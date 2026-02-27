@@ -1,0 +1,1122 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TA Nexus — لوحة التحكم الاستخباراتية</title>
+  <meta name="description" content="لوحة تحكم استخباراتية متقدمة لتحليل المرشحين وإدارة التوظيف الذكي" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Satoshi:wght@300;400;500;700&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    /* ═══════════════════════════════════════
+       DESIGN TOKENS
+    ═══════════════════════════════════════ */
+    :root {
+      --bg-deep:    #030712;
+      --bg-surface: #0b1120;
+      --bg-card:    rgba(255,255,255,0.045);
+      --bg-card-hover: rgba(255,255,255,0.08);
+      --border:     rgba(255,255,255,0.08);
+      --border-glow:rgba(99,179,237,0.35);
+      --accent:     #63b3ed;
+      --accent-2:   #a78bfa;
+      --accent-3:   #34d399;
+      --danger:     #f87171;
+      --warning:    #fbbf24;
+      --success:    #34d399;
+      --text-primary: #f1f5f9;
+      --text-secondary: #94a3b8;
+      --text-muted:   #475569;
+      --glass-blur: blur(24px) saturate(180%);
+      --radius-lg: 20px;
+      --radius-md: 14px;
+      --radius-sm: 8px;
+      --font-main: 'Space Grotesk', sans-serif;
+      --font-body: 'Satoshi', sans-serif;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      background: var(--bg-deep);
+      color: var(--text-primary);
+      font-family: var(--font-body);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* Animated mesh background */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 80% 60% at 10% 10%, rgba(99,179,237,0.08) 0%, transparent 60%),
+        radial-gradient(ellipse 60% 70% at 90% 80%, rgba(167,139,250,0.07) 0%, transparent 60%),
+        radial-gradient(ellipse 50% 40% at 50% 50%, rgba(52,211,153,0.04) 0%, transparent 60%);
+      z-index: 0;
+      pointer-events: none;
+      animation: meshPulse 10s ease-in-out infinite alternate;
+    }
+
+    @keyframes meshPulse {
+      0%   { opacity: 0.7; }
+      100% { opacity: 1; }
+    }
+
+    /* ═══════════════════════════════════════
+       LAYOUT
+    ═══════════════════════════════════════ */
+    .app-wrapper { position: relative; z-index: 1; display: flex; min-height: 100vh; }
+
+    /* Sidebar */
+    .sidebar {
+      width: 260px;
+      flex-shrink: 0;
+      background: rgba(11,17,32,0.85);
+      backdrop-filter: var(--glass-blur);
+      border-left: 1px solid var(--border);
+      padding: 28px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow-y: auto;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 8px 24px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 8px;
+    }
+
+    .logo-icon {
+      width: 38px;
+      height: 38px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      box-shadow: 0 0 20px rgba(99,179,237,0.3);
+    }
+
+    .logo-text h1 {
+      font-family: var(--font-main);
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+    .logo-text span {
+      font-size: 11px;
+      color: var(--text-muted);
+      font-weight: 400;
+    }
+
+    .nav-label {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      padding: 12px 10px 4px;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: all 0.2s;
+      color: var(--text-secondary);
+      font-size: 13.5px;
+      font-weight: 500;
+      position: relative;
+      text-decoration: none;
+    }
+    .nav-item:hover, .nav-item.active {
+      background: var(--bg-card-hover);
+      color: var(--text-primary);
+    }
+    .nav-item.active::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 20%;
+      height: 60%;
+      width: 3px;
+      background: var(--accent);
+      border-radius: 0 4px 4px 0;
+    }
+    .nav-item .icon { font-size: 16px; width: 20px; text-align: center; }
+
+    .badge {
+      margin-right: auto;
+      background: var(--accent);
+      color: #000;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 20px;
+    }
+    .badge.red { background: var(--danger); color: #fff; }
+    .badge.green { background: var(--success); color: #000; }
+
+    /* Main content */
+    .main {
+      flex: 1;
+      padding: 32px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 28px;
+    }
+
+    /* Header */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .header-left h2 {
+      font-family: var(--font-main);
+      font-size: 22px;
+      font-weight: 700;
+    }
+    .header-left p { color: var(--text-secondary); font-size: 13px; margin-top: 2px; }
+
+    .header-right { display: flex; gap: 10px; align-items: center; }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 9px 18px;
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: all 0.2s;
+      font-family: var(--font-main);
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      color: #000;
+      box-shadow: 0 4px 16px rgba(99,179,237,0.3);
+    }
+    .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 24px rgba(99,179,237,0.45); }
+    .btn-ghost {
+      background: var(--bg-card);
+      color: var(--text-secondary);
+      border: 1px solid var(--border);
+    }
+    .btn-ghost:hover { background: var(--bg-card-hover); color: var(--text-primary); }
+
+    /* ═══════════════════════════════════════
+       RED FLASH ALERT
+    ═══════════════════════════════════════ */
+    .risk-alert {
+      display: none;
+      background: linear-gradient(135deg, rgba(248,113,113,0.12), rgba(248,113,113,0.06));
+      border: 1px solid rgba(248,113,113,0.4);
+      border-radius: var(--radius-md);
+      padding: 16px 20px;
+      backdrop-filter: var(--glass-blur);
+      animation: redPulse 2s ease-in-out infinite;
+    }
+    .risk-alert.visible { display: flex; align-items: center; gap: 14px; }
+
+    @keyframes redPulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(248,113,113,0.15); }
+      50%       { box-shadow: 0 0 0 8px rgba(248,113,113,0); }
+    }
+    .risk-alert-icon { font-size: 24px; animation: flashIcon 1s ease-in-out infinite; }
+    @keyframes flashIcon { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+    .risk-alert-text h4 { font-family: var(--font-main); font-size: 14px; color: var(--danger); font-weight: 700; }
+    .risk-alert-text p  { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+
+    /* ═══════════════════════════════════════
+       STATS ROW
+    ═══════════════════════════════════════ */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+    }
+
+    .stat-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 20px 22px;
+      backdrop-filter: var(--glass-blur);
+      transition: all 0.3s;
+      opacity: 0;
+      transform: translateY(16px);
+      position: relative;
+      overflow: hidden;
+    }
+    .stat-card::after {
+      content: '';
+      position: absolute;
+      top: 0; right: 0;
+      width: 60px; height: 60px;
+      border-radius: 50%;
+      background: currentColor;
+      opacity: 0.04;
+      transform: translate(20px, -20px);
+    }
+    .stat-card.revealed { opacity: 1; transform: translateY(0); }
+    .stat-card:hover { background: var(--bg-card-hover); border-color: var(--border-glow); }
+
+    .stat-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.1em; font-weight: 600; }
+    .stat-value { font-family: var(--font-main); font-size: 32px; font-weight: 700; margin: 6px 0 4px; }
+    .stat-sub   { font-size: 12px; color: var(--text-secondary); }
+    .stat-icon  { position: absolute; top: 18px; left: 18px; font-size: 20px; opacity: 0.6; }
+
+    .stat-card.blue .stat-value  { color: var(--accent); }
+    .stat-card.purple .stat-value { color: var(--accent-2); }
+    .stat-card.green .stat-value  { color: var(--success); }
+    .stat-card.red .stat-value    { color: var(--danger); }
+
+    /* ═══════════════════════════════════════
+       MAIN GRID
+    ═══════════════════════════════════════ */
+    .main-grid {
+      display: grid;
+      grid-template-columns: 1fr 360px;
+      gap: 20px;
+      align-items: start;
+    }
+
+    /* Glass card */
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      backdrop-filter: var(--glass-blur);
+      padding: 24px;
+      opacity: 0;
+      transform: translateY(20px);
+      transition: opacity 0.5s, transform 0.5s;
+    }
+    .card.revealed { opacity: 1; transform: translateY(0); }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+    }
+    .card-title {
+      font-family: var(--font-main);
+      font-size: 15px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .card-sub { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+    /* ═══════════════════════════════════════
+       CANDIDATE TABLE
+    ═══════════════════════════════════════ */
+    .candidate-table { width: 100%; border-collapse: collapse; }
+    .candidate-table th {
+      text-align: right;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding: 0 12px 12px;
+      border-bottom: 1px solid var(--border);
+    }
+    .candidate-table td {
+      padding: 14px 12px;
+      font-size: 13px;
+      border-bottom: 1px solid rgba(255,255,255,0.035);
+      vertical-align: middle;
+    }
+    .candidate-row { transition: background 0.2s; cursor: pointer; }
+    .candidate-row:hover td { background: var(--bg-card-hover); }
+
+    .candidate-info { display: flex; align-items: center; gap: 10px; }
+    .avatar {
+      width: 36px; height: 36px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-weight: 700;
+      color: #000;
+      flex-shrink: 0;
+    }
+    .cand-name { font-weight: 600; font-size: 13.5px; }
+    .cand-title { font-size: 11px; color: var(--text-muted); }
+
+    /* Score bar */
+    .score-cell { min-width: 120px; }
+    .score-bar-wrap { display: flex; align-items: center; gap: 8px; }
+    .score-bar {
+      flex: 1;
+      height: 5px;
+      background: rgba(255,255,255,0.08);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    .score-fill {
+      height: 100%;
+      border-radius: 10px;
+      transition: width 1.2s cubic-bezier(0.4,0,0.2,1);
+    }
+    .score-num { font-family: var(--font-main); font-size: 13px; font-weight: 700; min-width: 28px; }
+
+    /* Domain color dot */
+    .domain-dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      display: inline-block;
+      box-shadow: 0 0 6px currentColor;
+    }
+    .domain-green  { background: var(--success); color: var(--success); }
+    .domain-yellow { background: var(--warning); color: var(--warning); }
+    .domain-red    { background: var(--danger);  color: var(--danger); }
+
+    /* Email verify badge */
+    .verify-badge {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 20px;
+      white-space: nowrap;
+    }
+    .verify-yes { background: rgba(52,211,153,0.15); color: var(--success); border: 1px solid rgba(52,211,153,0.3); }
+    .verify-no  { background: rgba(248,113,113,0.12); color: var(--danger);  border: 1px solid rgba(248,113,113,0.25); }
+
+    /* Risk pill */
+    .risk-pill {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 3px 9px;
+      border-radius: 20px;
+    }
+    .risk-low    { background: rgba(52,211,153,0.12); color: var(--success); }
+    .risk-medium { background: rgba(251,191,36,0.12); color: var(--warning); }
+    .risk-high   { background: rgba(248,113,113,0.12); color: var(--danger); animation: riskGlow 1.5s ease-in-out infinite; }
+    @keyframes riskGlow { 0%,100% { box-shadow: none; } 50% { box-shadow: 0 0 8px rgba(248,113,113,0.5); } }
+
+    /* ═══════════════════════════════════════
+       HEATMAP
+    ═══════════════════════════════════════ */
+    .heatmap-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 6px;
+    }
+    .heat-cell {
+      aspect-ratio: 1;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 9px;
+      font-weight: 700;
+      text-align: center;
+      transition: transform 0.2s;
+      cursor: default;
+      padding: 4px;
+      line-height: 1.2;
+    }
+    .heat-cell:hover { transform: scale(1.08); }
+    .heat-0 { background: rgba(52,211,153,0.15); color: var(--success); border: 1px solid rgba(52,211,153,0.25); }
+    .heat-1 { background: rgba(52,211,153,0.25); color: var(--success); border: 1px solid rgba(52,211,153,0.4); }
+    .heat-2 { background: rgba(251,191,36,0.15);  color: var(--warning); border: 1px solid rgba(251,191,36,0.3); }
+    .heat-3 { background: rgba(251,191,36,0.28);  color: var(--warning); border: 1px solid rgba(251,191,36,0.5); }
+    .heat-4 { background: rgba(248,113,113,0.2);  color: var(--danger);  border: 1px solid rgba(248,113,113,0.4); animation: riskGlow 2s ease-in-out infinite; }
+
+    /* ═══════════════════════════════════════
+       SIDE PANEL
+    ═══════════════════════════════════════ */
+    .side-stack { display: flex; flex-direction: column; gap: 16px; }
+
+    .mini-chart-wrap { height: 180px; position: relative; }
+
+    /* Skill gap list */
+    .gap-list { list-style: none; display: flex; flex-direction: column; gap: 10px; }
+    .gap-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 12.5px;
+    }
+    .gap-bar-wrap { flex: 1; margin: 0 10px; }
+    .gap-bar {
+      height: 4px;
+      background: rgba(255,255,255,0.07);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    .gap-fill {
+      height: 100%;
+      border-radius: 10px;
+      background: linear-gradient(90deg, var(--success), var(--warning), var(--danger));
+      transition: width 1.5s cubic-bezier(0.4,0,0.2,1);
+    }
+    .gap-pct { font-size: 11px; color: var(--text-muted); min-width: 30px; text-align: left; }
+
+    /* Reminder card */
+    .reminder-list { display: flex; flex-direction: column; gap: 10px; }
+    .reminder-item {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 12px 14px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      transition: background 0.2s;
+    }
+    .reminder-item:hover { background: var(--bg-card-hover); }
+    .reminder-avatar { width: 30px; height: 30px; border-radius: 50%; background: linear-gradient(135deg,var(--accent-2),var(--accent)); display: flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; color:#000; }
+    .reminder-info { flex: 1; }
+    .reminder-name { font-size: 13px; font-weight: 600; }
+    .reminder-date { font-size: 11px; color: var(--text-muted); }
+    .reminder-score { font-family: var(--font-main); font-size: 15px; font-weight: 700; color: var(--success); }
+
+    /* ═══════════════════════════════════════
+       EMPTY / LOADER
+    ═══════════════════════════════════════ */
+    .empty-state {
+      text-align: center;
+      padding: 48px 20px;
+      color: var(--text-muted);
+    }
+    .empty-state .empty-icon { font-size: 40px; margin-bottom: 12px; }
+    .empty-state p { font-size: 13px; }
+
+    .loader-dots { display: flex; gap: 6px; justify-content: center; align-items: center; padding: 40px; }
+    .loader-dots span {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--accent);
+      animation: dotBounce 1.2s ease-in-out infinite;
+    }
+    .loader-dots span:nth-child(2) { animation-delay: 0.2s; }
+    .loader-dots span:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes dotBounce { 0%,80%,100% { transform: scale(0.7); opacity:0.5; } 40% { transform: scale(1.1); opacity:1; } }
+
+    /* ═══════════════════════════════════════
+       MODAL
+    ═══════════════════════════════════════ */
+    .modal-overlay {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.6);
+      backdrop-filter: blur(8px);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal {
+      background: #101929;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 32px;
+      width: min(640px, 94vw);
+      max-height: 88vh;
+      overflow-y: auto;
+      box-shadow: 0 24px 80px rgba(0,0,0,0.5);
+      animation: modalIn 0.3s cubic-bezier(0.4,0,0.2,1);
+    }
+    @keyframes modalIn { from { opacity:0; transform: scale(0.94) translateY(12px); } to { opacity:1; transform:scale(1) translateY(0); } }
+
+    .modal-title { font-family: var(--font-main); font-size: 18px; font-weight: 700; margin-bottom: 20px; }
+    .modal-section { margin-bottom: 20px; }
+    .modal-section h4 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); margin-bottom: 10px; }
+    .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .detail-item label { font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 3px; }
+    .detail-item value { font-size: 14px; font-weight: 500; }
+
+    .score-ring-wrap { display: flex; justify-content: center; margin: 16px 0; }
+    .score-ring {
+      position: relative;
+      width: 120px; height: 120px;
+    }
+    .score-ring svg { transform: rotate(-90deg); }
+    .score-ring-num {
+      position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-family: var(--font-main); font-size: 30px; font-weight: 700;
+    }
+
+    .skill-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+    .skill-tag {
+      background: rgba(99,179,237,0.1);
+      color: var(--accent);
+      border: 1px solid rgba(99,179,237,0.25);
+      font-size: 11px;
+      padding: 3px 9px;
+      border-radius: 20px;
+      font-weight: 500;
+    }
+    .skill-tag.missing {
+      background: rgba(248,113,113,0.1);
+      color: var(--danger);
+      border-color: rgba(248,113,113,0.3);
+    }
+
+    .link-box {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 10px 14px;
+      font-size: 12px;
+      color: var(--accent);
+      font-family: monospace;
+      word-break: break-all;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .link-box:hover { background: rgba(255,255,255,0.07); }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
+  </style>
+</head>
+<body>
+
+<div class="app-wrapper">
+
+  <!-- ───────── SIDEBAR ───────── -->
+  <nav class="sidebar">
+    <div class="logo">
+      <div class="logo-icon">⚡</div>
+      <div class="logo-text">
+        <h1>TA Nexus</h1>
+        <span>Intelligence OS</span>
+      </div>
+    </div>
+
+    <div class="nav-label">التحليل</div>
+    <a class="nav-item active" id="nav-dashboard" onclick="switchView('dashboard')">
+      <span class="icon">🏛️</span> لوحة التحكم
+    </a>
+    <a class="nav-item" id="nav-candidates" onclick="switchView('candidates')">
+      <span class="icon">🎯</span> المرشحون
+      <span class="badge" id="badge-count">0</span>
+    </a>
+    <a class="nav-item" id="nav-heatmap" onclick="switchView('heatmap')">
+      <span class="icon">🔥</span> خريطة المخاطر
+    </a>
+
+    <div class="nav-label">العمليات</div>
+    <a class="nav-item" id="nav-reminders" onclick="switchView('reminders')">
+      <span class="icon">🔔</span> التذكيرات
+      <span class="badge red" id="reminder-badge">0</span>
+    </a>
+    <a class="nav-item" onclick="openNewCandidate()">
+      <span class="icon">➕</span> مرشح جديد
+    </a>
+
+    <div class="nav-label" style="margin-top:auto">الحالة</div>
+    <div class="nav-item" style="cursor:default;" id="db-status">
+      <span class="icon">🔗</span> <span id="db-status-text" style="color:var(--text-muted);font-size:12px;">جاري الاتصال…</span>
+    </div>
+  </nav>
+
+  <!-- ───────── MAIN ───────── -->
+  <main class="main" id="main-content">
+
+    <!-- Red flash alert -->
+    <div class="risk-alert" id="risk-alert">
+      <span class="risk-alert-icon">🚨</span>
+      <div class="risk-alert-text">
+        <h4>تحذير — مخاطرة عالية مكتشفة</h4>
+        <p id="risk-alert-msg">مرشح واحد أو أكثر يتجاوز حد المخاطرة 70% — مراجعة فورية مطلوبة قبل جدولة المقابلة.</p>
+      </div>
+      <button class="btn btn-ghost" style="font-size:12px;padding:6px 14px;" onclick="document.getElementById('risk-alert').classList.remove('visible')">تجاهل</button>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-grid" id="stats-grid">
+      <div class="stat-card blue" style="transition-delay:0.05s">
+        <span class="stat-icon">👤</span>
+        <div class="stat-label">إجمالي المرشحين</div>
+        <div class="stat-value" id="stat-total">—</div>
+        <div class="stat-sub">في قاعدة البيانات</div>
+      </div>
+      <div class="stat-card green" style="transition-delay:0.1s">
+        <span class="stat-icon">⭐</span>
+        <div class="stat-label">متوسط السكور</div>
+        <div class="stat-value" id="stat-avg">—</div>
+        <div class="stat-sub">من 100 نقطة</div>
+      </div>
+      <div class="stat-card purple" style="transition-delay:0.15s">
+        <span class="stat-icon">🎯</span>
+        <div class="stat-label">سكور عالٍ (&gt;85)</div>
+        <div class="stat-value" id="stat-high">—</div>
+        <div class="stat-sub">مرشح مميز</div>
+      </div>
+      <div class="stat-card red" style="transition-delay:0.2s">
+        <span class="stat-icon">⚠️</span>
+        <div class="stat-label">مخاطرة عالية</div>
+        <div class="stat-value" id="stat-risk">—</div>
+        <div class="stat-sub">يتجاوز 70% خطر</div>
+      </div>
+    </div>
+
+    <!-- Main grid -->
+    <div class="main-grid">
+
+      <!-- Candidate table card -->
+      <div class="card" id="candidates-card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">🧬 المرشحون النشطون</div>
+            <div class="card-sub">مرتبون حسب السكور الكلي</div>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <input id="search-box" type="text" placeholder="🔍 بحث…" oninput="filterCandidates()" style="background:var(--bg-card);border:1px solid var(--border);color:var(--text-primary);padding:6px 12px;border-radius:var(--radius-sm);font-size:12px;outline:none;width:160px;font-family:var(--font-body);" />
+            <button class="btn btn-primary" onclick="refreshCandidates()">↻ تحديث</button>
+          </div>
+        </div>
+        <div id="candidates-container">
+          <div class="loader-dots"><span></span><span></span><span></span></div>
+        </div>
+      </div>
+
+      <!-- Side stack -->
+      <div class="side-stack">
+
+        <!-- Score distribution chart -->
+        <div class="card" style="transition-delay:0.2s">
+          <div class="card-header">
+            <div class="card-title">📊 توزيع السكور</div>
+          </div>
+          <div class="mini-chart-wrap">
+            <canvas id="scoreChart"></canvas>
+          </div>
+        </div>
+
+        <!-- Skill gap -->
+        <div class="card" style="transition-delay:0.3s">
+          <div class="card-header">
+            <div class="card-title">🔴 ثغرات المهارات</div>
+          </div>
+          <ul class="gap-list" id="gap-list">
+            <li class="gap-item"><span>تحميل…</span></li>
+          </ul>
+        </div>
+
+        <!-- Reminders -->
+        <div class="card" style="transition-delay:0.4s" id="reminders-card">
+          <div class="card-header">
+            <div class="card-title">🔔 متابعات مجدولة</div>
+            <span class="badge green" id="reminders-count">0</span>
+          </div>
+          <div class="reminder-list" id="reminder-list">
+            <div class="empty-state"><div class="empty-icon">📭</div><p>لا توجد متابعات</p></div>
+          </div>
+        </div>
+
+      </div><!-- /side-stack -->
+    </div><!-- /main-grid -->
+
+  </main>
+</div>
+
+<!-- ───────── CANDIDATE DETAIL MODAL ───────── -->
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+      <div class="modal-title" id="modal-name">تفاصيل المرشح</div>
+      <button class="btn btn-ghost" onclick="closeModal()" style="padding:6px 14px;">✕</button>
+    </div>
+
+    <div class="score-ring-wrap">
+      <div class="score-ring">
+        <svg width="120" height="120" viewBox="0 0 120 120">
+          <circle cx="60" cy="60" r="50" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="10"/>
+          <circle id="modal-ring" cx="60" cy="60" r="50" fill="none" stroke="url(#ringGrad)" stroke-width="10" stroke-linecap="round"
+            stroke-dasharray="314" stroke-dashoffset="314" style="transition:stroke-dashoffset 1s ease;"/>
+          <defs>
+            <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="#63b3ed"/>
+              <stop offset="100%" stop-color="#a78bfa"/>
+            </linearGradient>
+          </defs>
+        </svg>
+        <div class="score-ring-num" id="modal-score-num">—</div>
+      </div>
+    </div>
+
+    <div class="modal-section">
+      <h4>معلومات أساسية</h4>
+      <div class="detail-grid">
+        <div class="detail-item"><label>الاسم</label><value id="md-name">—</value></div>
+        <div class="detail-item"><label>البريد</label><value id="md-email">—</value></div>
+        <div class="detail-item"><label>المسمى الوظيفي</label><value id="md-title">—</value></div>
+        <div class="detail-item"><label>الشركة</label><value id="md-company">—</value></div>
+      </div>
+    </div>
+
+    <div class="modal-section">
+      <h4>🟢 مهارات موجودة</h4>
+      <div class="skill-tags" id="md-skills">—</div>
+    </div>
+
+    <div class="modal-section">
+      <h4>🔴 ثغرات مهارية</h4>
+      <div class="skill-tags" id="md-gaps">—</div>
+    </div>
+
+    <div class="modal-section">
+      <h4>📊 مستوى المخاطر</h4>
+      <div class="detail-grid">
+        <div class="detail-item"><label>مخاطرة الاستبقاء</label><value id="md-retention">—</value></div>
+        <div class="detail-item"><label>مخاطرة الراتب</label><value id="md-salary">—</value></div>
+        <div class="detail-item"><label>مخاطرة الملاءمة</label><value id="md-cultural">—</value></div>
+        <div class="detail-item"><label>نطاق الشركة</label><value id="md-domain">—</value></div>
+      </div>
+    </div>
+
+    <div class="modal-section">
+      <h4>🔗 رابط الفحص الديناميكي</h4>
+      <div class="link-box" id="md-screen-link" onclick="copyLink(this)">جاري التوليد…</div>
+    </div>
+
+    <div style="display:flex;gap:10px;margin-top:12px;">
+      <button class="btn btn-primary" onclick="generatePDF()">📄 تحميل دليل المقابلة</button>
+      <button class="btn btn-ghost" onclick="dismissCandidate()">🗑️ أرشفة</button>
+    </div>
+  </div>
+</div>
+
+<!-- ───────── SCRIPTS ───────── -->
+<script>
+  // ── Supabase init ──
+  const { createClient } = supabase;
+  const SUPABASE_URL = 'https://jvsdazoxmcehnazxthwm.supabase.co';
+  const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp2c2Rhem94bWNlaG5henh0aHdtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIyMTUxNzAsImV4cCI6MjA4Nzc5MTE3MH0.eEognaOfPX1WBXHFECtHZyt7362YxMZ6uHIUGxr-zCw';
+  const db = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+  const APP_URL = 'https://ta-nexus.vercel.app';
+  let allCandidates = [];
+  let selectedCandidate = null;
+  let scoreChart = null;
+
+  // ── Boot ──
+  (async () => {
+    await checkDbConnection();
+    await Promise.all([loadCandidates(), loadReminders()]);
+    revealCards();
+  })();
+
+  async function checkDbConnection() {
+    try {
+      const { error } = await db.from('candidates').select('id').limit(1);
+      const el = document.getElementById('db-status-text');
+      if (error) {
+        el.textContent = '⚠️ خطأ في الاتصال';
+        el.style.color = 'var(--danger)';
+      } else {
+        el.textContent = '✅ متصل بـ Supabase';
+        el.style.color = 'var(--success)';
+      }
+    } catch(e) {
+      document.getElementById('db-status-text').textContent = '❌ فشل الاتصال';
+    }
+  }
+
+  // ── Load Candidates ──
+  async function loadCandidates() {
+    const { data, error } = await db
+      .from('candidates')
+      .select('*')
+      .order('overall_score', { ascending: false })
+      .limit(100);
+
+    if (error) { console.error(error); return; }
+    allCandidates = data || [];
+    renderCandidates(allCandidates);
+    updateStats(allCandidates);
+    buildScoreChart(allCandidates);
+    buildGapList(allCandidates);
+    checkHighRisk(allCandidates);
+    document.getElementById('badge-count').textContent = allCandidates.length;
+  }
+
+  async function refreshCandidates() { await loadCandidates(); }
+
+  function filterCandidates() {
+    const q = document.getElementById('search-box').value.toLowerCase();
+    const filtered = allCandidates.filter(c =>
+      (c.name||'').toLowerCase().includes(q) ||
+      (c.current_title||'').toLowerCase().includes(q) ||
+      (c.current_company||'').toLowerCase().includes(q)
+    );
+    renderCandidates(filtered);
+  }
+
+  function renderCandidates(list) {
+    const box = document.getElementById('candidates-container');
+    if (!list.length) {
+      box.innerHTML = '<div class="empty-state"><div class="empty-icon">🔍</div><p>لا يوجد مرشحون بعد. أضف أول مرشح!</p></div>';
+      return;
+    }
+    box.innerHTML = `
+      <table class="candidate-table">
+        <thead><tr>
+          <th>المرشح</th><th>الشركة</th><th>السكور</th>
+          <th>البريد</th><th>نطاق الشركة</th><th>المخاطرة</th>
+        </tr></thead>
+        <tbody>
+          ${list.map(c => candidateRow(c)).join('')}
+        </tbody>
+      </table>`;
+  }
+
+  function candidateRow(c) {
+    const initials = (c.name||'?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+    const score = c.overall_score || 0;
+    const scoreColor = score >= 85 ? 'var(--success)' : score >= 60 ? 'var(--warning)' : 'var(--danger)';
+    const domainClass = c.domain_color === 'green' ? 'domain-green' : c.domain_color === 'yellow' ? 'domain-yellow' : 'domain-red';
+    const riskVal = Math.max(c.retention_risk||0, c.salary_risk||0, c.cultural_risk||0);
+    const riskClass = riskVal >= 70 ? 'risk-high' : riskVal >= 40 ? 'risk-medium' : 'risk-low';
+    const riskLabel = riskVal >= 70 ? 'عالية' : riskVal >= 40 ? 'متوسطة' : 'منخفضة';
+    return `
+      <tr class="candidate-row" onclick="openCandidate('${c.id}')">
+        <td><div class="candidate-info">
+          <div class="avatar">${initials}</div>
+          <div><div class="cand-name">${c.name||'—'}</div><div class="cand-title">${c.current_title||''}</div></div>
+        </div></td>
+        <td style="color:var(--text-secondary);font-size:13px;">${c.current_company||'—'}</td>
+        <td class="score-cell">
+          <div class="score-bar-wrap">
+            <span class="score-num" style="color:${scoreColor}">${Math.round(score)}</span>
+            <div class="score-bar"><div class="score-fill" style="width:${score}%;background:${scoreColor};"></div></div>
+          </div>
+        </td>
+        <td><span class="verify-badge ${c.email_verified ? 'verify-yes' : 'verify-no'}">${c.email_verified ? '✓ محقق' : '✗ غير محقق'}</span></td>
+        <td><span class="domain-dot ${domainClass}"></span></td>
+        <td><span class="risk-pill ${riskClass}">${riskLabel} ${Math.round(riskVal)}%</span></td>
+      </tr>`;
+  }
+
+  function updateStats(data) {
+    const total = data.length;
+    const avg = total ? Math.round(data.reduce((s,c) => s + (c.overall_score||0), 0) / total) : 0;
+    const high = data.filter(c => (c.overall_score||0) >= 85).length;
+    const risk = data.filter(c => Math.max(c.retention_risk||0,c.salary_risk||0,c.cultural_risk||0) >= 70).length;
+    animateNum('stat-total', total);
+    animateNum('stat-avg', avg);
+    animateNum('stat-high', high);
+    animateNum('stat-risk', risk);
+  }
+
+  function animateNum(id, target) {
+    const el = document.getElementById(id);
+    let cur = 0;
+    const step = Math.ceil(target / 30);
+    const t = setInterval(() => {
+      cur = Math.min(cur + step, target);
+      el.textContent = cur;
+      if (cur >= target) clearInterval(t);
+    }, 30);
+  }
+
+  function checkHighRisk(data) {
+    const highRisk = data.filter(c => Math.max(c.retention_risk||0, c.salary_risk||0, c.cultural_risk||0) >= 70);
+    if (highRisk.length > 0) {
+      const alert = document.getElementById('risk-alert');
+      document.getElementById('risk-alert-msg').textContent =
+        `${highRisk.length} مرشح يتجاوز حد المخاطرة 70% — مراجعة فورية مطلوبة قبل جدولة المقابلة.`;
+      alert.classList.add('visible');
+    }
+  }
+
+  // ── Chart ──
+  function buildScoreChart(data) {
+    const ctx = document.getElementById('scoreChart').getContext('2d');
+    const bins = [0,0,0,0,0]; // 0-20, 20-40, 40-60, 60-80, 80-100
+    data.forEach(c => {
+      const s = c.overall_score || 0;
+      bins[Math.min(Math.floor(s/20), 4)]++;
+    });
+    if (scoreChart) scoreChart.destroy();
+    scoreChart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: ['0-20','20-40','40-60','60-80','80-100'],
+        datasets: [{
+          data: bins,
+          backgroundColor: ['rgba(248,113,113,0.7)','rgba(251,191,36,0.6)','rgba(251,191,36,0.6)','rgba(99,179,237,0.6)','rgba(52,211,153,0.7)'],
+          borderColor: ['#f87171','#fbbf24','#fbbf24','#63b3ed','#34d399'],
+          borderWidth: 1, borderRadius: 6,
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94a3b8', font: { size: 10 } } },
+          y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94a3b8', font: { size: 10 }, stepSize: 1 } }
+        }
+      }
+    });
+  }
+
+  // ── Skill Gap ──
+  function buildGapList(data) {
+    const skillMap = {};
+    data.forEach(c => {
+      (c.skills || []).forEach(s => {
+        skillMap[s] = (skillMap[s] || 0) + 1;
+      });
+    });
+    // Simulated gap: skills with low penetration = gaps
+    const all = Object.entries(skillMap).sort((a,b) => a[1]-b[1]).slice(0,6);
+    const max = data.length || 1;
+    const list = document.getElementById('gap-list');
+    if (!all.length) { list.innerHTML = '<li class="gap-item" style="color:var(--text-muted);font-size:12px;">لا توجد بيانات مهارات بعد</li>'; return; }
+    list.innerHTML = all.map(([skill, count]) => {
+      const pct = Math.round((1 - count/max) * 100);
+      return `<li class="gap-item">
+        <span style="font-size:12px;color:var(--text-secondary);min-width:70px;">${skill}</span>
+        <div class="gap-bar-wrap"><div class="gap-bar"><div class="gap-fill" style="width:${pct}%"></div></div></div>
+        <span class="gap-pct">${pct}%</span>
+      </li>`;
+    }).join('');
+  }
+
+  // ── Reminders ──
+  async function loadReminders() {
+    const today = new Date().toISOString();
+    const { data } = await db
+      .from('reminders')
+      .select('*, candidates(name, current_title, overall_score)')
+      .eq('status','pending')
+      .lte('follow_up_date', today);
+
+    const count = (data||[]).length;
+    document.getElementById('reminder-badge').textContent = count;
+    document.getElementById('reminders-count').textContent = count;
+
+    const list = document.getElementById('reminder-list');
+    if (!count) return;
+    list.innerHTML = (data||[]).map(r => {
+      const c = r.candidates || {};
+      const initials = (c.name||'?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+      const date = new Date(r.follow_up_date).toLocaleDateString('ar-SA');
+      return `<div class="reminder-item">
+        <div class="reminder-avatar">${initials}</div>
+        <div class="reminder-info">
+          <div class="reminder-name">${c.name||'—'}</div>
+          <div class="reminder-date">📅 ${date} · ${c.current_title||''}</div>
+        </div>
+        <div class="reminder-score">${Math.round(c.overall_score||0)}</div>
+      </div>`;
+    }).join('');
+  }
+
+  // ── Modal ──
+  function openCandidate(id) {
+    const c = allCandidates.find(x => x.id === id);
+    if (!c) return;
+    selectedCandidate = c;
+    document.getElementById('modal-name').textContent = c.name || 'مرشح';
+    document.getElementById('md-name').textContent = c.name || '—';
+    document.getElementById('md-email').textContent = c.email || '—';
+    document.getElementById('md-title').textContent = c.current_title || '—';
+    document.getElementById('md-company').textContent = c.current_company || '—';
+    document.getElementById('md-retention').innerHTML = riskBadge(c.retention_risk);
+    document.getElementById('md-salary').innerHTML = riskBadge(c.salary_risk);
+    document.getElementById('md-cultural').innerHTML = riskBadge(c.cultural_risk);
+    document.getElementById('md-domain').innerHTML = domainBadge(c.domain_color);
+    document.getElementById('md-skills').innerHTML = (c.skills||[]).map(s=>
+      `<span class="skill-tag">${s}</span>`).join('') || '<span style="color:var(--text-muted);font-size:12px;">لا يوجد</span>';
+    document.getElementById('md-gaps').innerHTML = '<span style="color:var(--text-muted);font-size:12px;">يتطلب تحليل CV</span>';
+    document.getElementById('md-screen-link').textContent = `${APP_URL}/screen/${id.slice(0,8)}`;
+
+    // Ring
+    const score = c.overall_score || 0;
+    const offset = 314 - (314 * score / 100);
+    setTimeout(() => {
+      document.getElementById('modal-ring').style.strokeDashoffset = offset;
+      document.getElementById('modal-score-num').textContent = Math.round(score);
+    }, 100);
+
+    document.getElementById('modal-overlay').classList.add('open');
+  }
+
+  function closeModal() {
+    document.getElementById('modal-overlay').classList.remove('open');
+    document.getElementById('modal-ring').style.strokeDashoffset = 314;
+  }
+
+  function riskBadge(val) {
+    const v = val || 0;
+    const cls = v >= 70 ? 'risk-high' : v >= 40 ? 'risk-medium' : 'risk-low';
+    const label = v >= 70 ? 'عالية' : v >= 40 ? 'متوسطة' : 'منخفضة';
+    return `<span class="risk-pill ${cls}">${label} ${Math.round(v)}%</span>`;
+  }
+
+  function domainBadge(color) {
+    const map = { green:'✅ أخضر', yellow:'🟡 أصفر', red:'🔴 أحمر' };
+    return map[color] || '—';
+  }
+
+  function copyLink(el) {
+    navigator.clipboard.writeText(el.textContent).then(() => {
+      const orig = el.textContent;
+      el.textContent = '✅ تم النسخ!';
+      setTimeout(()=> el.textContent = orig, 2000);
+    });
+  }
+
+  function openNewCandidate() {
+    alert('ستُفتح نافذة إضافة مرشح جديد — سيتم ربطها بواجهة API في المرحلة القادمة.');
+  }
+
+  function generatePDF() {
+    alert('🔄 جاري توليد دليل المقابلة PDF عبر محرك pdf_generator.py...');
+  }
+
+  function dismissCandidate() {
+    if (confirm('هل تريد أرشفة هذا المرشح؟')) closeModal();
+  }
+
+  // ── Staggered reveal ──
+  function revealCards() {
+    const cards = document.querySelectorAll('.stat-card, .card');
+    cards.forEach((c, i) => {
+      setTimeout(() => c.classList.add('revealed'), 100 + i * 80);
+    });
+  }
+
+  function switchView(view) {
+    document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+    document.getElementById('nav-' + view)?.classList.add('active');
+  }
+</script>
+</body>
+</html>

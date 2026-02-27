@@ -3,10 +3,7 @@
   "builds": [
     {
       "src": "api/index.py",
-      "use": "@vercel/python",
-      "config": {
-        "maxLambdaSize": "15mb"
-      }
+      "use": "@vercel/python"
     }
   ],
   "routes": [
@@ -15,16 +12,12 @@
       "dest": "/api/index.py"
     },
     {
-      "src": "/screen/(.*)",
-      "dest": "/ui/candidate_portal/index.html"
+      "src": "/screen(.*)",
+      "dest": "/screen/index.html"
     },
     {
-      "src": "/dashboard",
-      "dest": "/ui/analytics_dashboard/index.html"
-    },
-    {
-      "src": "/",
-      "dest": "/ui/analytics_dashboard/index.html"
+      "src": "/(.*)",
+      "dest": "/$1"
     }
   ]
 }

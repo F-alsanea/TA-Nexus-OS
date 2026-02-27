@@ -1,0 +1,993 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TA Nexus — بوابة الفحص الذكي</title>
+    <meta name="description" content="اختبار ذكي ومخصص لقياس كفاءتك المهنية" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Satoshi:wght@400;500&display=swap"
+        rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        :root {
+            --bg: #030712;
+            --surface: #0b1120;
+            --card: rgba(255, 255, 255, 0.05);
+            --border: rgba(255, 255, 255, 0.09);
+            --accent: #63b3ed;
+            --accent-2: #a78bfa;
+            --success: #34d399;
+            --danger: #f87171;
+            --warning: #fbbf24;
+            --text: #f1f5f9;
+            --muted: #94a3b8;
+            --blur: blur(24px) saturate(180%);
+            --r-lg: 20px;
+            --r-md: 14px;
+            --r-sm: 8px;
+        }
+
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'Satoshi', sans-serif;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            overflow-x: hidden;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+            background:
+                radial-gradient(ellipse 70% 50% at 20% 20%, rgba(99, 179, 237, 0.1) 0%, transparent 60%),
+                radial-gradient(ellipse 60% 60% at 80% 80%, rgba(167, 139, 250, 0.08) 0%, transparent 60%);
+            animation: bgPulse 8s ease-in-out infinite alternate;
+        }
+
+        @keyframes bgPulse {
+            0% {
+                opacity: 0.7;
+            }
+
+            100% {
+                opacity: 1;
+            }
+        }
+
+        /* ── Header ── */
+        header {
+            position: relative;
+            z-index: 2;
+            width: 100%;
+            max-width: 720px;
+            padding: 36px 24px 0;
+            text-align: center;
+        }
+
+        .brand {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid var(--border);
+            padding: 6px 16px;
+            border-radius: 50px;
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--muted);
+            margin-bottom: 24px;
+        }
+
+        .brand-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--success);
+            box-shadow: 0 0 6px var(--success);
+            animation: blink 1.5s infinite;
+        }
+
+        @keyframes blink {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.3;
+            }
+        }
+
+        header h1 {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 28px;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--accent), var(--accent-2));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 8px;
+        }
+
+        header p {
+            color: var(--muted);
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        /* ── Progress ── */
+        .progress-wrap {
+            width: 100%;
+            max-width: 720px;
+            padding: 20px 24px 0;
+            position: relative;
+            z-index: 2;
+        }
+
+        .progress-meta {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: var(--muted);
+            margin-bottom: 8px;
+        }
+
+        .progress-track {
+            height: 4px;
+            background: rgba(255, 255, 255, 0.07);
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            border-radius: 10px;
+            background: linear-gradient(90deg, var(--accent), var(--accent-2));
+            transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* ── Main container ── */
+        .container {
+            position: relative;
+            z-index: 2;
+            width: 100%;
+            max-width: 720px;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        /* ── Question card ── */
+        .q-card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: var(--r-lg);
+            backdrop-filter: var(--blur);
+            padding: 28px 30px;
+            opacity: 0;
+            transform: translateY(20px);
+            transition: opacity 0.4s, transform 0.4s;
+        }
+
+        .q-card.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .q-type-badge {
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            padding: 3px 10px;
+            border-radius: 20px;
+            margin-bottom: 12px;
+            display: inline-block;
+        }
+
+        .q-type-tech {
+            background: rgba(99, 179, 237, 0.12);
+            color: var(--accent);
+            border: 1px solid rgba(99, 179, 237, 0.25);
+        }
+
+        .q-type-behavioral {
+            background: rgba(167, 139, 250, 0.12);
+            color: var(--accent-2);
+            border: 1px solid rgba(167, 139, 250, 0.25);
+        }
+
+        .q-type-situational {
+            background: rgba(52, 211, 153, 0.12);
+            color: var(--success);
+            border: 1px solid rgba(52, 211, 153, 0.25);
+        }
+
+        .q-num {
+            font-size: 11px;
+            color: var(--muted);
+            margin-bottom: 4px;
+        }
+
+        .q-text {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 18px;
+            font-weight: 600;
+            line-height: 1.5;
+            margin-bottom: 20px;
+        }
+
+        textarea {
+            width: 100%;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid var(--border);
+            border-radius: var(--r-md);
+            color: var(--text);
+            font-family: 'Satoshi', sans-serif;
+            font-size: 14px;
+            line-height: 1.7;
+            padding: 14px 16px;
+            resize: vertical;
+            min-height: 120px;
+            outline: none;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        textarea:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(99, 179, 237, 0.12);
+        }
+
+        textarea::placeholder {
+            color: var(--muted);
+        }
+
+        .char-count {
+            text-align: left;
+            font-size: 11px;
+            color: var(--muted);
+            margin-top: 6px;
+        }
+
+        /* MCQ options */
+        .options-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .option-btn {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border);
+            border-radius: var(--r-md);
+            padding: 13px 16px;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: right;
+            color: var(--text);
+            font-size: 14px;
+            font-family: 'Satoshi', sans-serif;
+        }
+
+        .option-btn:hover {
+            background: rgba(255, 255, 255, 0.07);
+            border-color: rgba(99, 179, 237, 0.3);
+        }
+
+        .option-btn.selected {
+            background: rgba(99, 179, 237, 0.12);
+            border-color: var(--accent);
+            box-shadow: 0 0 0 2px rgba(99, 179, 237, 0.15);
+        }
+
+        .option-key {
+            width: 28px;
+            height: 28px;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--muted);
+            flex-shrink: 0;
+            font-family: 'Space Grotesk', sans-serif;
+        }
+
+        .option-btn.selected .option-key {
+            background: var(--accent);
+            color: #000;
+            border-color: var(--accent);
+        }
+
+        /* ── Navigation ── */
+        .nav-buttons {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-top: 8px;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            padding: 11px 22px;
+            border-radius: var(--r-sm);
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            transition: all 0.2s;
+            font-family: 'Space Grotesk', sans-serif;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent), var(--accent-2));
+            color: #000;
+            box-shadow: 0 4px 16px rgba(99, 179, 237, 0.3);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 24px rgba(99, 179, 237, 0.45);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-ghost {
+            background: var(--card);
+            color: var(--muted);
+            border: 1px solid var(--border);
+        }
+
+        .btn-ghost:hover {
+            color: var(--text);
+            background: rgba(255, 255, 255, 0.07);
+        }
+
+        /* ── States ── */
+        .screen {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            padding: 60px 24px;
+        }
+
+        .screen.active {
+            display: flex;
+        }
+
+        /* Loading */
+        .spinner {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            border: 3px solid rgba(255, 255, 255, 0.1);
+            border-top-color: var(--accent);
+            animation: spin 0.8s linear infinite;
+            margin-bottom: 24px;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* Results */
+        .result-ring {
+            position: relative;
+            width: 160px;
+            height: 160px;
+            margin: 0 auto 24px;
+        }
+
+        .result-ring svg {
+            transform: rotate(-90deg);
+        }
+
+        .result-num {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .result-num .big {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 42px;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--accent), var(--accent-2));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .result-num .label {
+            font-size: 12px;
+            color: var(--muted);
+        }
+
+        .result-breakdown {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            width: 100%;
+            max-width: 480px;
+            margin: 24px auto;
+        }
+
+        .result-item {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: var(--r-md);
+            padding: 16px 12px;
+            backdrop-filter: var(--blur);
+        }
+
+        .result-item .ri-val {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+
+        .result-item .ri-lbl {
+            font-size: 11px;
+            color: var(--muted);
+        }
+
+        .ri-acc {
+            color: var(--accent);
+        }
+
+        .ri-depth {
+            color: var(--accent-2);
+        }
+
+        .ri-cult {
+            color: var(--success);
+        }
+
+        .confetti {
+            font-size: 48px;
+            margin-bottom: 16px;
+            animation: bounce 0.6s ease-in-out infinite alternate;
+        }
+
+        @keyframes bounce {
+            from {
+                transform: translateY(0);
+            }
+
+            to {
+                transform: translateY(-10px);
+            }
+        }
+
+        /* Error */
+        .error-icon {
+            font-size: 56px;
+            margin-bottom: 16px;
+        }
+
+        .error-title {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 22px;
+            font-weight: 700;
+            margin-bottom: 8px;
+            color: var(--danger);
+        }
+
+        .error-msg {
+            color: var(--muted);
+            font-size: 14px;
+        }
+
+        /* Timer */
+        .timer-badge {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid var(--border);
+            border-radius: 50px;
+            padding: 5px 14px;
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--muted);
+        }
+
+        .timer-badge.urgent {
+            color: var(--danger);
+            border-color: rgba(248, 113, 113, 0.3);
+            animation: riskGlow 1s ease-in-out infinite;
+        }
+
+        @keyframes riskGlow {
+
+            0%,
+            100% {
+                box-shadow: none;
+            }
+
+            50% {
+                box-shadow: 0 0 8px rgba(248, 113, 113, 0.4);
+            }
+        }
+
+        ::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- LOADING SCREEN -->
+    <div class="screen active" id="screen-loading" style="margin-top:20vh;">
+        <div class="spinner"></div>
+        <h2 style="font-family:'Space Grotesk',sans-serif;font-size:18px;font-weight:600;margin-bottom:8px;">جاري تحضير
+            اختبارك المخصص…</h2>
+        <p style="color:var(--muted);font-size:13px;">يتم تحليل ملفك الوظيفي وتوليد أسئلة مخصصة لك</p>
+    </div>
+
+    <!-- ERROR SCREEN -->
+    <div class="screen" id="screen-error" style="margin-top:15vh;">
+        <div class="error-icon">⚠️</div>
+        <div class="error-title">الرابط غير صالح</div>
+        <p class="error-msg">هذا الرابط منتهي الصلاحية أو غير صحيح.<br />تواصل مع فريق التوظيف للحصول على رابط جديد.</p>
+    </div>
+
+    <!-- INTRO SCREEN -->
+    <div class="screen" id="screen-intro" style="margin-top:10vh;max-width:640px;padding:40px 24px;">
+        <div class="brand">
+            <div class="brand-dot"></div> TA Nexus Intelligence
+        </div>
+        <h1 id="intro-title"
+            style="font-family:'Space Grotesk',sans-serif;font-size:26px;font-weight:700;margin-bottom:8px;">اختبار
+            تقييم مهني</h1>
+        <p id="intro-job" style="color:var(--muted);font-size:14px;margin-bottom:28px;"></p>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;width:100%;margin-bottom:32px;">
+            <div
+                style="background:var(--card);border:1px solid var(--border);border-radius:var(--r-md);padding:16px;text-align:center;backdrop-filter:var(--blur);">
+                <div style="font-family:'Space Grotesk',sans-serif;font-size:22px;font-weight:700;color:var(--accent);"
+                    id="q-count">—</div>
+                <div style="font-size:11px;color:var(--muted);">سؤال</div>
+            </div>
+            <div
+                style="background:var(--card);border:1px solid var(--border);border-radius:var(--r-md);padding:16px;text-align:center;backdrop-filter:var(--blur);">
+                <div style="font-family:'Space Grotesk',sans-serif;font-size:22px;font-weight:700;color:var(--accent-2);"
+                    id="est-time">—</div>
+                <div style="font-size:11px;color:var(--muted);">دقيقة تقريباً</div>
+            </div>
+            <div
+                style="background:var(--card);border:1px solid var(--border);border-radius:var(--r-md);padding:16px;text-align:center;backdrop-filter:var(--blur);">
+                <div
+                    style="font-family:'Space Grotesk',sans-serif;font-size:22px;font-weight:700;color:var(--success);">
+                    100</div>
+                <div style="font-size:11px;color:var(--muted);">نقطة كاملة</div>
+            </div>
+        </div>
+        <p
+            style="font-size:13px;color:var(--muted);line-height:1.8;margin-bottom:28px;padding:16px 20px;background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:var(--r-md);text-align:right;">
+            📌 الأسئلة مصممة خصيصاً بناءً على ملفك المهني. أجب بصدق ودقة، لأن إجاباتك ستُوجِّه نقاش المقابلة القادمة. لا
+            توجد إجابة "خاطئة" — نريد أن نفهم طريقة تفكيرك.
+        </p>
+        <button class="btn btn-primary" id="start-btn" onclick="startScreening()"
+            style="font-size:15px;padding:13px 32px;">
+            ابدأ الاختبار ⚡
+        </button>
+    </div>
+
+    <!-- QUESTION SCREEN -->
+    <header id="q-header" style="display:none;">
+        <div class="brand">
+            <div class="brand-dot"></div> TA Nexus — بوابة التقييم
+        </div>
+        <h1>اختبار مهني مخصص</h1>
+        <p id="q-header-subtitle" style="color:var(--muted);font-size:13px;margin-top:6px;"></p>
+    </header>
+
+    <div class="progress-wrap" id="progress-wrap" style="display:none;">
+        <div class="progress-meta">
+            <span id="progress-label">السؤال 1 من 6</span>
+            <div class="timer-badge" id="timer-badge">⏱ <span id="timer-display">00:00</span></div>
+        </div>
+        <div class="progress-track">
+            <div class="progress-fill" id="progress-fill" style="width:0%"></div>
+        </div>
+    </div>
+
+    <div class="container" id="q-container" style="display:none;">
+        <!-- Questions rendered here -->
+        <div class="nav-buttons">
+            <button class="btn btn-ghost" id="prev-btn" onclick="prevQuestion()" style="display:none;">← السابق</button>
+            <div></div>
+            <button class="btn btn-primary" id="next-btn" onclick="nextQuestion()">التالي →</button>
+        </div>
+    </div>
+
+    <!-- SUBMITTING SCREEN -->
+    <div class="screen" id="screen-submitting" style="margin-top:20vh;">
+        <div class="spinner"></div>
+        <h2 style="font-family:'Space Grotesk',sans-serif;font-size:18px;font-weight:600;margin-bottom:8px;">جاري تحليل
+            إجاباتك…</h2>
+        <p style="color:var(--muted);font-size:13px;">يقيّم النظام إجاباتك مقارنةً بنموذج الخبراء</p>
+    </div>
+
+    <!-- RESULT SCREEN -->
+    <div class="screen" id="screen-result" style="margin-top:8vh;width:100%;max-width:600px;padding:40px 24px;">
+        <div class="confetti" id="result-emoji">🎉</div>
+        <h2 style="font-family:'Space Grotesk',sans-serif;font-size:24px;font-weight:700;margin-bottom:6px;"
+            id="result-heading">تم اختبارك بنجاح!</h2>
+        <p style="color:var(--muted);font-size:13px;margin-bottom:24px;">سيتواصل معك فريق التوظيف قريباً</p>
+
+        <div class="result-ring">
+            <svg width="160" height="160" viewBox="0 0 160 160">
+                <circle cx="80" cy="80" r="68" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="12" />
+                <circle id="result-ring-circle" cx="80" cy="80" r="68" fill="none" stroke="url(#resGrad)"
+                    stroke-width="12" stroke-linecap="round" stroke-dasharray="427" stroke-dashoffset="427"
+                    style="transition:stroke-dashoffset 1.5s cubic-bezier(0.4,0,0.2,1);" />
+                <defs>
+                    <linearGradient id="resGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" stop-color="#63b3ed" />
+                        <stop offset="100%" stop-color="#a78bfa" />
+                    </linearGradient>
+                </defs>
+            </svg>
+            <div class="result-num">
+                <span class="big" id="result-score">0</span>
+                <span class="label">من 100</span>
+            </div>
+        </div>
+
+        <div class="result-breakdown">
+            <div class="result-item">
+                <div class="ri-val ri-acc" id="r-acc">—</div>
+                <div class="ri-lbl">دقة الإجابة</div>
+            </div>
+            <div class="result-item">
+                <div class="ri-val ri-depth" id="r-depth">—</div>
+                <div class="ri-lbl">عمق الخبرة</div>
+            </div>
+            <div class="result-item">
+                <div class="ri-val ri-cult" id="r-cult">—</div>
+                <div class="ri-lbl">الملاءمة الثقافية</div>
+            </div>
+        </div>
+
+        <p style="font-size:13px;color:var(--muted);line-height:1.8;padding:14px 18px;background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:var(--r-md);text-align:right;width:100%;"
+            id="result-msg">
+            شكراً على وقتك. سيتم مراجعة إجاباتك من قِبَل فريق التوظيف وستُحدَّد خطوات المقابلة القادمة بناءً على تقييمك
+            الكلي.
+        </p>
+    </div>
+
+    <script>
+        const { createClient } = supabase;
+        const SUPABASE_URL = 'https://jvsdazoxmcehnazxthwm.supabase.co';
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp2c2Rhem94bWNlaG5henh0aHdtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIyMTUxNzAsImV4cCI6MjA4Nzc5MTE3MH0.eEognaOfPX1WBXHFECtHZyt7362YxMZ6uHIUGxr-zCw';
+        const db = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        // Get session UUID from URL
+        const sessionId = window.location.pathname.split('/screen/')[1] ||
+            new URLSearchParams(window.location.search).get('id') ||
+            'demo-session';
+
+        let session = null;
+        let questions = [];
+        let answers = {};
+        let currentQ = 0;
+        let startTime = null;
+        let timerInterval = null;
+
+        // ─── Boot ───
+        (async () => {
+            await loadSession();
+        })();
+
+        async function loadSession() {
+            // Try to load from Supabase
+            const { data, error } = await db
+                .from('screening_sessions')
+                .select('*, candidates(name, current_title)')
+                .eq('id', sessionId)
+                .single();
+
+            if (error || !data) {
+                // Demo mode if not found
+                if (sessionId === 'demo-session') {
+                    session = getDemoSession();
+                } else {
+                    show('screen-error');
+                    return;
+                }
+            } else {
+                session = data;
+                if (session.status === 'completed') {
+                    showCompletedResult();
+                    return;
+                }
+            }
+
+            questions = session.questions || [];
+            setupIntro();
+            show('screen-intro');
+        }
+
+        function getDemoSession() {
+            return {
+                id: 'demo-session',
+                candidate_id: 'demo',
+                job_id: 'مهندس برمجيات أول',
+                status: 'pending',
+                candidates: { name: 'مرشح تجريبي', current_title: 'مطور Full-Stack' },
+                questions: [
+                    { id: 'q1', text: 'كيف تُصمم نظام خلفي (Backend) يستطيع التعامل مع 100,000 طلب في الثانية؟ اشرح اختياراتك المعمارية.', type: 'tech', options: null },
+                    { id: 'q2', text: 'أعطِنا مثالاً حقيقياً لموقف اضطررت فيه لرفض متطلب من مديرك المباشر. ما الذي فعلته وما كانت النتيجة؟', type: 'behavioral', options: null },
+                    {
+                        id: 'q3', text: 'ما هو مستوى خبرتك في تقنيات الحوسبة السحابية؟', type: 'tech',
+                        options: ['مبتدئ — أساسيات فقط', 'متوسط — استخدمتها في مشاريع حقيقية', 'متقدم — أدير بنية تحتية سحابية كاملة', 'خبير — لدي شهادات معتمدة وفريق أقوده']
+                    },
+                    { id: 'q4', text: 'صِف أصعب bug واجهته في حياتك المهنية. كيف اكتشفته وكيف أصلحته؟', type: 'tech', options: null },
+                    { id: 'q5', text: 'بافتراض أنك انضممت لفريقنا، ما هي أول ثلاثة أشياء ستفعلها في أول 90 يوم؟', type: 'situational', options: null },
+                    { id: 'q6', text: 'ما هو توقعك للراتب الشهري (بالريال السعودي)؟', type: 'situational', options: null },
+                ]
+            };
+        }
+
+        function setupIntro() {
+            const name = session.candidates?.name || 'المرشح';
+            const job = session.job_id || 'الوظيفة المطلوبة';
+            document.getElementById('intro-title').textContent = `مرحباً، ${name}`;
+            document.getElementById('intro-job').textContent = `الوظيفة المستهدفة: ${job}`;
+            document.getElementById('q-count').textContent = questions.length;
+            document.getElementById('est-time').textContent = Math.ceil(questions.length * 2.5);
+            document.getElementById('q-header-subtitle').textContent = `الوظيفة: ${job}`;
+        }
+
+        function startScreening() {
+            startTime = Date.now();
+            show('q-header', 'block');
+            show('progress-wrap', 'block');
+            show('q-container', 'block');
+            hide('screen-intro');
+            renderQuestion(0);
+            startTimer();
+        }
+
+        // ─── Question rendering ───
+        function renderQuestion(idx) {
+            const q = questions[idx];
+            if (!idx) renderQuestion.prevAns = {};
+            currentQ = idx;
+
+            // Progress
+            const pct = ((idx + 1) / questions.length) * 100;
+            document.getElementById('progress-fill').style.width = pct + '%';
+            document.getElementById('progress-label').textContent = `السؤال ${idx + 1} من ${questions.length}`;
+
+            const typeMap = { tech: ['تقني', 'q-type-tech'], behavioral: ['سلوكي', 'q-type-behavioral'], situational: ['موقفي', 'q-type-situational'] };
+            const [typeLabel, typeClass] = typeMap[q.type] || ['عام', 'q-type-tech'];
+
+            let inputHtml = '';
+            if (q.options && q.options.length) {
+                inputHtml = `<div class="options-list">
+        ${q.options.map((o, i) => {
+                    const keys = ['أ', 'ب', 'ج', 'د'];
+                    const selected = answers[q.id] === o ? 'selected' : '';
+                    return `<button class="option-btn ${selected}" onclick="selectOption('${q.id}', this, '${o.replace(/'/g, "\\'")}')">
+            <span class="option-key">${keys[i] || i + 1}</span>${o}
+          </button>`;
+                }).join('')}
+      </div>`;
+            } else {
+                const saved = answers[q.id] || '';
+                inputHtml = `
+        <textarea id="ans-${q.id}" placeholder="اكتب إجابتك هنا… لا حد للكلمات." oninput="updateAns('${q.id}', this)">${saved}</textarea>
+        <div class="char-count"><span id="cc-${q.id}">${saved.length}</span> حرف</div>`;
+            }
+
+            const cardHtml = `
+      <div class="q-card" id="q-card-current">
+        <span class="q-type-badge ${typeClass}">${typeLabel}</span>
+        <div class="q-num">سؤال ${idx + 1} من ${questions.length}</div>
+        <div class="q-text">${q.text}</div>
+        ${inputHtml}
+      </div>`;
+
+            // Insert before nav buttons
+            const container = document.getElementById('q-container');
+            const old = document.getElementById('q-card-current');
+            if (old) old.remove();
+            container.insertAdjacentHTML('afterbegin', cardHtml);
+            setTimeout(() => document.getElementById('q-card-current').classList.add('visible'), 50);
+
+            // Nav buttons
+            document.getElementById('prev-btn').style.display = idx > 0 ? 'inline-flex' : 'none';
+            document.getElementById('next-btn').textContent = idx === questions.length - 1 ? 'إرسال الإجابات ✓' : 'التالي →';
+        }
+
+        function updateAns(qid, el) {
+            answers[qid] = el.value;
+            const cc = document.getElementById('cc-' + qid);
+            if (cc) cc.textContent = el.value.length;
+        }
+
+        function selectOption(qid, btn, val) {
+            document.querySelectorAll('.option-btn').forEach(b => b.classList.remove('selected'));
+            btn.classList.add('selected');
+            answers[qid] = val;
+        }
+
+        async function nextQuestion() {
+            // Validate
+            const q = questions[currentQ];
+            if (!answers[q.id] || !answers[q.id].trim()) {
+                const card = document.getElementById('q-card-current');
+                card.style.borderColor = 'rgba(248,113,113,0.5)';
+                setTimeout(() => card.style.borderColor = '', 1500);
+                return;
+            }
+
+            if (currentQ < questions.length - 1) {
+                renderQuestion(currentQ + 1);
+            } else {
+                await submitAnswers();
+            }
+        }
+
+        function prevQuestion() {
+            if (currentQ > 0) renderQuestion(currentQ - 1);
+        }
+
+        // ─── Submit ───
+        async function submitAnswers() {
+            hide('q-header');
+            hide('progress-wrap');
+            hide('q-container');
+            stopTimer();
+            show('screen-submitting');
+
+            const answersList = Object.entries(answers).map(([qid, text]) => ({ question_id: qid, answer_text: text }));
+
+            // Update session in Supabase
+            await db.from('screening_sessions').update({
+                answers: answersList,
+                status: 'completed',
+                submitted_at: new Date().toISOString(),
+            }).eq('id', sessionId);
+
+            // Simulate scoring (in real: handled by score_candidate.py via API)
+            await new Promise(r => setTimeout(r, 2800));
+
+            const score = simulateScore(answersList);
+            await db.from('scores').insert({
+                id: crypto.randomUUID(),
+                session_id: sessionId,
+                candidate_id: session.candidate_id || 'demo',
+                total_score: score.total,
+                accuracy_score: score.accuracy,
+                depth_score: score.depth,
+                cultural_score: score.cultural,
+                scored_at: new Date().toISOString(),
+            }).then(() => { }).catch(() => { });
+
+            // Auto-schedule reminder if score > 85
+            if (score.total >= 85) {
+                await db.from('reminders').insert({
+                    id: crypto.randomUUID(),
+                    candidate_id: session.candidate_id || 'demo',
+                    follow_up_date: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
+                    status: 'pending',
+                    trigger_score: score.total,
+                    recruiter_note: 'مرشح ذو أولوية - تم جدولة المتابعة آلياً',
+                    created_at: new Date().toISOString(),
+                }).then(() => { }).catch(() => { });
+            }
+
+            hide('screen-submitting');
+            showResult(score);
+        }
+
+        function simulateScore(ans) {
+            const avgLen = ans.reduce((s, a) => s + (a.answer_text || '').length, 0) / (ans.length || 1);
+            const base = Math.min(Math.round(40 + (avgLen / 8)), 94);
+            return {
+                total: base,
+                accuracy: Math.min(Math.round(base + Math.random() * 8 - 4), 100),
+                depth: Math.min(Math.round(base - 5 + Math.random() * 10), 100),
+                cultural: Math.min(Math.round(base + 2 + Math.random() * 6), 100),
+            };
+        }
+
+        function showResult(score) {
+            show('screen-result');
+            const emoji = score.total >= 85 ? '🏆' : score.total >= 60 ? '✅' : '🎯';
+            document.getElementById('result-emoji').textContent = emoji;
+            document.getElementById('r-acc').textContent = score.accuracy + '%';
+            document.getElementById('r-depth').textContent = score.depth + '%';
+            document.getElementById('r-cult').textContent = score.cultural + '%';
+            if (score.total >= 85) document.getElementById('result-msg').textContent =
+                '🏆 نتيجة ممتازة! تم تصنيفك ضمن المرشحين ذوي الأولوية. سيتواصل معك مسؤول التوظيف خلال 48 ساعة.';
+
+            // Animate ring
+            const offset = 427 - (427 * score.total / 100);
+            setTimeout(() => {
+                document.getElementById('result-ring-circle').style.strokeDashoffset = offset;
+                animateNum('result-score', score.total);
+            }, 200);
+        }
+
+        function showCompletedResult() {
+            show('screen-result');
+            document.getElementById('result-emoji').textContent = '✅';
+            document.getElementById('result-heading').textContent = 'لقد أكملت هذا الاختبار مسبقاً';
+            document.getElementById('result-msg').textContent = 'تم استلام إجاباتك بنجاح. سيتواصل معك فريق التوظيف قريباً.';
+            document.getElementById('result-ring-circle').style.strokeDashoffset = 0;
+        }
+
+        // ─── Timer ───
+        function startTimer() {
+            timerInterval = setInterval(() => {
+                const elapsed = Math.floor((Date.now() - startTime) / 1000);
+                const m = String(Math.floor(elapsed / 60)).padStart(2, '0');
+                const s = String(elapsed % 60).padStart(2, '0');
+                document.getElementById('timer-display').textContent = `${m}:${s}`;
+                const badge = document.getElementById('timer-badge');
+                if (elapsed > questions.length * 180) badge.classList.add('urgent');
+            }, 1000);
+        }
+        function stopTimer() { clearInterval(timerInterval); }
+
+        // ─── Helpers ───
+        function show(id, display = 'flex') { const el = document.getElementById(id); if (el) { el.style.display = display; el.classList.add('active'); } }
+        function hide(id) { const el = document.getElementById(id); if (el) { el.style.display = 'none'; el.classList.remove('active'); } }
+
+        function animateNum(id, target) {
+            const el = document.getElementById(id);
+            let cur = 0; const step = Math.ceil(target / 40);
+            const t = setInterval(() => {
+                cur = Math.min(cur + step, target);
+                el.textContent = cur;
+                if (cur >= target) clearInterval(t);
+            }, 35);
+        }
+    </script>
+</body>
+
+</html>
