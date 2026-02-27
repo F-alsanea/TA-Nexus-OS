@@ -1,0 +1,33 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "main.py",
+      "use": "@vercel/python"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "main.py"
+    },
+    {
+      "src": "/screen/(.*)",
+      "dest": "/ui/candidate_portal/index.html"
+    },
+    {
+      "src": "/",
+      "dest": "/ui/analytics_dashboard/index.html"
+    },
+    {
+      "src": "/dashboard",
+      "dest": "/ui/analytics_dashboard/index.html"
+    }
+  ],
+  "functions": {
+    "main.py": {
+      "maxDuration": 30,
+      "memory": 512
+    }
+  }
+}

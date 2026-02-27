@@ -1,0 +1,49 @@
+# ==========================================
+#   TA NEXUS — .gitignore
+# ==========================================
+
+# 🔐 SECRETS - NEVER COMMIT
+.env
+*.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+pip-selfcheck.json
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+
+# Vercel
+.vercel/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Generated PDFs
+/output/
+*.pdf
+
+# Node (for any frontend tooling)
+node_modules/
