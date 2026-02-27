@@ -1,11 +1,5 @@
 {
   "version": 2,
-  "builds": [
-    {
-      "src": "main.py",
-      "use": "@vercel/python"
-    }
-  ],
   "routes": [
     {
       "src": "/api/(.*)",
@@ -16,11 +10,11 @@
       "dest": "/ui/candidate_portal/index.html"
     },
     {
-      "src": "/",
+      "src": "/dashboard",
       "dest": "/ui/analytics_dashboard/index.html"
     },
     {
-      "src": "/dashboard",
+      "src": "/",
       "dest": "/ui/analytics_dashboard/index.html"
     }
   ],
