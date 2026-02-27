@@ -10,14 +10,6 @@
     {
       "src": "/api/(.*)",
       "dest": "/api/index.py"
-    },
-    {
-      "src": "/screen(.*)",
-      "dest": "/screen/index.html"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/$1"
     }
   ]
 }
