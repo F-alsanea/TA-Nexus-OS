@@ -1,21 +1,18 @@
-"""
-TA Nexus — Vercel Serverless Entry Point
-=========================================
-Vercel requires Python serverless functions to be inside /api directory.
-This file exposes the FastAPI app as the main handler.
-"""
-
 import sys
 import os
-
-# Add parent directory to path so we can import from core/, services/, etc.
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
 import uuid
 from fastapi import FastAPI, File, UploadFile, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
+
+# Add parent directory to path so we can import from core/, services/, etc.
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from core.orchestrator import Orchestrator
+from database.supabase_handler import SupabaseHandler
+# We'll need a mock or simple implementation for process_cv since file_processor wasn't shown
+# We'll implement a secure one using security_service directly
 
 load_dotenv()
 
@@ -35,6 +32,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+orchestrator = Orchestrator()
+db = SupabaseHandler()
 
 # ──────────────────────────────────────────────
 # Request Models
@@ -78,13 +78,88 @@ async def health_check():
     }
 
 # ──────────────────────────────────────────────
+# CV Upload & Processing (Pillar 1: Security First)
+# ──────────────────────────────────────────────
+@app.post("/api/upload_cv")
+async def upload_cv(file: UploadFile = File(...)):
+    """
+    Step 1: VirusTotal scan -> Save to Supabase (Mocked text extraction)
+    Rule 1: Security First — No file passes unscanned
+    """
+    from services.security_service import scan_file
+    
+    if not file.filename.endswith(('.pdf', '.docx', '.doc')):
+        raise HTTPException(400, "Only PDF and Word documents are accepted")
+
+    file_bytes = await file.read()
+
+    try:
+        # Mandatory VirusTotal Scan
+        scan_result = await scan_file(file_bytes)
+        if not scan_result.safe:
+            raise HTTPException(403, f"SECURITY ALERT: File blocked. {scan_result.malicious_count} malicious engines detected.")
+
+        # In a real app we'd call Cloudmersive here. We mock CV parse info:
+        cv_data = {
+            "name": file.filename.split('.')[0],
+            "current_title": "Software Engineer",
+            "skills": ["Python", "React", "SQL", "FastAPI"],
+            "experience_years": 5,
+            "security_scan": scan_result.model_dump()
+        }
+        
+        candidate_id = str(uuid.uuid4())
+        await db.save_candidate(candidate_id, cv_data)
+        return {"candidate_id": candidate_id, "cv_data": cv_data}
+    except Exception as e:
+        raise HTTPException(500, f"CV processing failed: {str(e)}")
+
+# ──────────────────────────────────────────────
+# Full Intelligence Hunt (Sniper Hunter)
+# ──────────────────────────────────────────────
+@app.post("/api/hunt")
+async def hunt_candidate(request: HuntRequest):
+    """Worker B: LinkedIn sniper + email hunting + verification"""
+    try:
+        result = await orchestrator.run_hunt(
+            job_title=request.job_title,
+            company_domain=request.company_domain,
+            first_name=request.candidate_first_name,
+            last_name=request.candidate_last_name,
+            location=request.location
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(500, f"Hunt failed: {str(e)}")
+
+# ──────────────────────────────────────────────
+# Full Candidate Analysis (Strategic/Radar)
+# ──────────────────────────────────────────────
+@app.post("/api/analyze")
+async def analyze_candidate(request: AnalyzeRequest):
+    """Workers A + C + D: Strategic alignment, risk scoring, market analysis"""
+    try:
+        candidate = await db.get_candidate(request.candidate_id)
+        if not candidate:
+            raise HTTPException(404, "Candidate not found")
+
+        report = await orchestrator.run_analysis(
+            candidate_data=candidate,
+            job_description=request.job_description,
+            salary_ask=request.candidate_ask_salary
+        )
+        return report
+    except Exception as e:
+        raise HTTPException(500, f"Analysis failed: {str(e)}")
+
+# ──────────────────────────────────────────────
 # Generate Screening Link
 # ──────────────────────────────────────────────
 @app.post("/api/generate_link")
 async def generate_screening_link(request: GenerateLinkRequest):
     """Worker C: Generate UUID screening link with tailored questions"""
     try:
-        from generate_link import create_screening_session
+        from api.generate_link import create_screening_session
         result = await create_screening_session(request.candidate_id, request.job_id)
         return result
     except Exception as e:
@@ -97,7 +172,7 @@ async def generate_screening_link(request: GenerateLinkRequest):
 async def score_candidate_answers(request: ScoreRequest):
     """Evaluator-Optimizer: Score answers → Generate Interview Guide PDF"""
     try:
-        from score_candidate import evaluate_screening
+        from api.score_candidate import evaluate_screening
         result = await evaluate_screening(request.session_id, request.answers)
         return result
     except Exception as e:
@@ -110,12 +185,10 @@ async def score_candidate_answers(request: ScoreRequest):
 async def get_session(session_id: str):
     """Returns screening session questions for the candidate portal"""
     try:
-        from supabase import create_client
-        db = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"))
-        result = db.table("screening_sessions").select("*").eq("id", session_id).single().execute()
-        if not result.data:
+        result = await db.get_screening_session(session_id)
+        if not result:
             raise HTTPException(404, "Session not found or expired")
-        return result.data
+        return result
     except Exception as e:
         raise HTTPException(500, str(e))
 
@@ -126,12 +199,17 @@ async def get_session(session_id: str):
 async def get_dashboard_data():
     """Returns all candidates sorted by score for the dashboard"""
     try:
-        from supabase import create_client
-        db = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"))
-        result = db.table("candidates").select("*").order("overall_score", desc=True).execute()
-        return {"candidates": result.data or [], "count": len(result.data or [])}
+        candidates = await db.get_all_candidates_with_scores()
+        return {"candidates": candidates, "count": len(candidates)}
     except Exception as e:
-        raise HTTPException(500, str(e))
+        # Fallback if the Supabase RPC isn't available yet or fails
+        try:
+            from supabase import create_client
+            client = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"))
+            result = client.table("candidates").select("*").execute()
+            return {"candidates": result.data or [], "count": len(result.data or [])}
+        except Exception as fallback_e:
+            raise HTTPException(500, str(fallback_e))
 
 # Vercel handler
 handler = app

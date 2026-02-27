@@ -40,6 +40,11 @@ def get_client() -> Client:
 #  CANDIDATES
 # ─────────────────────────────────────────────
 
+def save_candidate(candidate_id: str, candidate_data: dict) -> dict:
+    """Alias for upsert_candidate to support the API upload_cv route."""
+    candidate_data["id"] = candidate_id
+    return upsert_candidate(candidate_data)
+
 def upsert_candidate(candidate_data: dict) -> dict:
     """
     Insert or update a candidate record.
@@ -87,6 +92,11 @@ def list_candidates(job_id: Optional[str] = None, limit: int = 50) -> list:
         query = query.eq("source_job_id", job_id)
     result = query.execute()
     return result.data or []
+
+
+def get_all_candidates_with_scores() -> list:
+    """Get all candidates for the dashboard."""
+    return list_candidates()
 
 
 def delete_candidate(candidate_id: str) -> bool:
