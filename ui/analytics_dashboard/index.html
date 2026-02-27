@@ -1044,6 +1044,42 @@
             background: rgba(255, 255, 255, 0.1);
             border-radius: 10px;
         }
+
+        /* ═══════════════════════════════════════
+           NEW CANDIDATE MODAL
+        ═══════════════════════════════════════ */
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+        }
+
+        .form-control {
+            width: 100%;
+            background: rgba(0, 0, 0, 0.2);
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+            padding: 12px 14px;
+            border-radius: var(--radius-sm);
+            font-family: var(--font-body);
+            font-size: 13px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .form-control:focus {
+            border-color: var(--accent);
+        }
+
+        textarea.form-control {
+            min-height: 120px;
+            resize: vertical;
+        }
     </style>
 </head>
 
@@ -1276,6 +1312,35 @@
             <div style="display:flex;gap:10px;margin-top:12px;">
                 <button class="btn btn-primary" onclick="generatePDF()">📄 تحميل دليل المقابلة</button>
                 <button class="btn btn-ghost" onclick="dismissCandidate()">🗑️ أرشفة</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ───────── ADD NEW CANDIDATE MODAL ───────── -->
+    <div class="modal-overlay" id="modal-add-overlay">
+        <div class="modal" style="width: min(540px, 94vw);">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+                <div class="modal-title">➕ إضافة مرشح (قناص السير)</div>
+                <button class="btn btn-ghost" onclick="closeAddModal()" style="padding:6px 14px;">✕</button>
+            </div>
+
+            <div class="form-group">
+                <label>الوظيفة المستهدفة / المهام (Job Description)</label>
+                <input type="text" id="add-target-job" class="form-control"
+                    placeholder="مثال: Senior Frontend Engineer, React, 5+ سنوات...">
+            </div>
+
+            <div class="form-group">
+                <label>انسخ بروفايل لينكد إن هنا (LinkedIn Profile Text)</label>
+                <textarea id="add-profile-text" class="form-control"
+                    placeholder="انسخ النص بالكامل من صفحة المرشح على لينكد إن والصقه هنا..."></textarea>
+            </div>
+
+            <div style="display:flex;gap:10px;margin-top:24px;justify-content:flex-end;">
+                <button class="btn btn-ghost" onclick="closeAddModal()">إلغاء</button>
+                <button class="btn btn-primary" id="btn-submit-add" onclick="submitNewCandidate()">
+                    <span id="btn-submit-text">🚀 تقييم وإضافة (Gemini)</span>
+                </button>
             </div>
         </div>
     </div>
@@ -1594,8 +1659,61 @@
             }
         }
 
+        // ── Add New Candidate logic ──
         function openNewCandidate() {
-            alert('واجهة رفع السيرة الذاتية وفحصها أمنياً (VirusTotal) غير متوفرة بعد في هذه الواجهة، ولكن الـ API `/api/upload_cv` جاهز!');
+            document.getElementById('add-target-job').value = '';
+            document.getElementById('add-profile-text').value = '';
+            document.getElementById('btn-submit-text').textContent = '🚀 تقييم وإضافة (Gemini)';
+            document.getElementById('btn-submit-add').disabled = false;
+            document.getElementById('modal-add-overlay').classList.add('open');
+        }
+
+        function closeAddModal() {
+            document.getElementById('modal-add-overlay').classList.remove('open');
+        }
+
+        async function submitNewCandidate() {
+            const targetJob = document.getElementById('add-target-job').value.trim();
+            const profileText = document.getElementById('add-profile-text').value.trim();
+
+            if (!targetJob || !profileText) {
+                alert("الرجاء إدخال الوظيفة المستهدفة ونسخ بروفايل لينكد إن");
+                return;
+            }
+
+            const btn = document.getElementById('btn-submit-add');
+            const btnText = document.getElementById('btn-submit-text');
+
+            btn.disabled = true;
+            btnText.textContent = '⏳ جاري تحليل البروفايل عبر Gemini...';
+
+            try {
+                const res = await fetch('/api/evaluate_linkedin', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        profile_text: profileText,
+                        target_job: targetJob
+                    })
+                });
+
+                const data = await res.json();
+
+                if (res.ok) {
+                    closeAddModal();
+                    await refreshCandidates();
+                    // Automatically open the new candidate
+                    openCandidate(data.candidate_id);
+                } else {
+                    alert("حدث خطأ أثناء التقييم: " + JSON.stringify(data));
+                    btn.disabled = false;
+                    btnText.textContent = '🚀 تقييم وإضافة (Gemini)';
+                }
+            } catch (e) {
+                alert("تعذر الاتصال بالخادم");
+                btn.disabled = false;
+                btnText.textContent = '🚀 تقييم وإضافة (Gemini)';
+            }
         }
 
         function generatePDF() {

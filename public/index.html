@@ -1036,13 +1036,45 @@
       width: 5px;
     }
 
-    ::-webkit-scrollbar-track {
-      background: transparent;
-    }
-
     ::-webkit-scrollbar-thumb {
       background: rgba(255, 255, 255, 0.1);
       border-radius: 10px;
+    }
+
+    /* ═══════════════════════════════════════
+       NEW CANDIDATE MODAL
+    ═══════════════════════════════════════ */
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    .form-group label {
+      display: block;
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+
+    .form-control {
+      width: 100%;
+      background: rgba(0, 0, 0, 0.2);
+      border: 1px solid var(--border);
+      color: var(--text-primary);
+      padding: 12px 14px;
+      border-radius: var(--radius-sm);
+      font-family: var(--font-body);
+      font-size: 13px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .form-control:focus {
+      border-color: var(--accent);
+    }
+
+    textarea.form-control {
+      min-height: 120px;
+      resize: vertical;
     }
   </style>
 </head>
@@ -1277,87 +1309,115 @@
         <button class="btn btn-ghost" onclick="dismissCandidate()">🗑️ أرشفة</button>
       </div>
     </div>
-  </div>
 
-  <!-- ───────── SCRIPTS ───────── -->
-  <script>
-    // ── Supabase init ──
-    const { createClient } = supabase;
-    const SUPABASE_URL = 'https://jvsdazoxmcehnazxthwm.supabase.co';
-    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp2c2Rhem94bWNlaG5henh0aHdtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIyMTUxNzAsImV4cCI6MjA4Nzc5MTE3MH0.eEognaOfPX1WBXHFECtHZyt7362YxMZ6uHIUGxr-zCw';
-    const db = createClient(SUPABASE_URL, SUPABASE_KEY);
+    <!-- ───────── ADD NEW CANDIDATE MODAL ───────── -->
+    <div class="modal-overlay" id="modal-add-overlay">
+      <div class="modal" style="width: min(540px, 94vw);">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+          <div class="modal-title">➕ إضافة مرشح (قناص السير)</div>
+          <button class="btn btn-ghost" onclick="closeAddModal()" style="padding:6px 14px;">✕</button>
+        </div>
 
-    const APP_URL = 'https://ta-nexus.vercel.app';
-    let allCandidates = [];
-    let selectedCandidate = null;
-    let scoreChart = null;
+        <div class="form-group">
+          <label>الوظيفة المستهدفة / المهام (Job Description)</label>
+          <input type="text" id="add-target-job" class="form-control"
+            placeholder="مثال: Senior Frontend Engineer, React, 5+ سنوات...">
+        </div>
 
-    // ── Boot ──
-    (async () => {
-      await checkDbConnection();
-      await Promise.all([loadCandidates(), loadReminders()]);
-      revealCards();
-    })();
+        <div class="form-group">
+          <label>انسخ بروفايل لينكد إن هنا (LinkedIn Profile Text)</label>
+          <textarea id="add-profile-text" class="form-control"
+            placeholder="انسخ النص بالكامل من صفحة المرشح على لينكد إن والصقه هنا..."></textarea>
+        </div>
 
-    async function checkDbConnection() {
-      try {
-        // Connect to our FastAPI Intelligence Backend
-        const res = await fetch('/api/health');
-        const data = await res.json();
-        const el = document.getElementById('db-status-text');
+        <div style="display:flex;gap:10px;margin-top:24px;justify-content:flex-end;">
+          <button class="btn btn-ghost" onclick="closeAddModal()">إلغاء</button>
+          <button class="btn btn-primary" id="btn-submit-add" onclick="submitNewCandidate()">
+            <span id="btn-submit-text">🚀 تقييم وإضافة (Gemini)</span>
+          </button>
+        </div>
+      </div>
+    </div>
 
-        if (res.ok && data.status === 'operational') {
-          el.textContent = '✅ The 7 Senses Online';
-          el.style.color = 'var(--success)';
-        } else {
-          el.textContent = '⚠️ Backend Error';
-          el.style.color = 'var(--warning)';
+    <!-- ───────── SCRIPTS ───────── -->
+    <script>
+      // ── Supabase init ──
+      const { createClient } = supabase;
+      const SUPABASE_URL = 'https://jvsdazoxmcehnazxthwm.supabase.co';
+      const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp2c2Rhem94bWNlaG5henh0aHdtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIyMTUxNzAsImV4cCI6MjA4Nzc5MTE3MH0.eEognaOfPX1WBXHFECtHZyt7362YxMZ6uHIUGxr-zCw';
+      const db = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+      const APP_URL = 'https://ta-nexus.vercel.app';
+      let allCandidates = [];
+      let selectedCandidate = null;
+      let scoreChart = null;
+
+      // ── Boot ──
+      (async () => {
+        await checkDbConnection();
+        await Promise.all([loadCandidates(), loadReminders()]);
+        revealCards();
+      })();
+
+      async function checkDbConnection() {
+        try {
+          // Connect to our FastAPI Intelligence Backend
+          const res = await fetch('/api/health');
+          const data = await res.json();
+          const el = document.getElementById('db-status-text');
+
+          if (res.ok && data.status === 'operational') {
+            el.textContent = '✅ The 7 Senses Online';
+            el.style.color = 'var(--success)';
+          } else {
+            el.textContent = '⚠️ Backend Error';
+            el.style.color = 'var(--warning)';
+          }
+        } catch (e) {
+          document.getElementById('db-status-text').textContent = '❌ Offline';
         }
-      } catch (e) {
-        document.getElementById('db-status-text').textContent = '❌ Offline';
       }
-    }
 
-    // ── Load Candidates (via FastAPI) ──
-    async function loadCandidates() {
-      try {
-        const res = await fetch('/api/dashboard');
-        if (!res.ok) throw new Error('API Error');
-        const payload = await res.json();
-        allCandidates = payload.candidates || [];
+      // ── Load Candidates (via FastAPI) ──
+      async function loadCandidates() {
+        try {
+          const res = await fetch('/api/dashboard');
+          if (!res.ok) throw new Error('API Error');
+          const payload = await res.json();
+          allCandidates = payload.candidates || [];
 
-        renderCandidates(allCandidates);
-        updateStats(allCandidates);
-        buildScoreChart(allCandidates);
-        buildGapList(allCandidates);
-        checkHighRisk(allCandidates);
-        document.getElementById('badge-count').textContent = allCandidates.length;
-      } catch (e) {
-        console.error('Failed to load dashboard:', e);
-        document.getElementById('candidates-container').innerHTML =
-          '<div class="empty-state"><div class="empty-icon">⚠️</div><p>فشل تحميل بيانات لوحة التحكم من الخادم</p></div>';
+          renderCandidates(allCandidates);
+          updateStats(allCandidates);
+          buildScoreChart(allCandidates);
+          buildGapList(allCandidates);
+          checkHighRisk(allCandidates);
+          document.getElementById('badge-count').textContent = allCandidates.length;
+        } catch (e) {
+          console.error('Failed to load dashboard:', e);
+          document.getElementById('candidates-container').innerHTML =
+            '<div class="empty-state"><div class="empty-icon">⚠️</div><p>فشل تحميل بيانات لوحة التحكم من الخادم</p></div>';
+        }
       }
-    }
 
-    async function refreshCandidates() { await loadCandidates(); }
+      async function refreshCandidates() { await loadCandidates(); }
 
-    function filterCandidates() {
-      const q = document.getElementById('search-box').value.toLowerCase();
-      const filtered = allCandidates.filter(c =>
-        (c.name || '').toLowerCase().includes(q) ||
-        (c.current_title || '').toLowerCase().includes(q) ||
-        (c.current_company || '').toLowerCase().includes(q)
-      );
-      renderCandidates(filtered);
-    }
-
-    function renderCandidates(list) {
-      const box = document.getElementById('candidates-container');
-      if (!list.length) {
-        box.innerHTML = '<div class="empty-state"><div class="empty-icon">🔍</div><p>لا يوجد مرشحون بعد. أضف أول مرشح!</p></div>';
-        return;
+      function filterCandidates() {
+        const q = document.getElementById('search-box').value.toLowerCase();
+        const filtered = allCandidates.filter(c =>
+          (c.name || '').toLowerCase().includes(q) ||
+          (c.current_title || '').toLowerCase().includes(q) ||
+          (c.current_company || '').toLowerCase().includes(q)
+        );
+        renderCandidates(filtered);
       }
-      box.innerHTML = `
+
+      function renderCandidates(list) {
+        const box = document.getElementById('candidates-container');
+        if (!list.length) {
+          box.innerHTML = '<div class="empty-state"><div class="empty-icon">🔍</div><p>لا يوجد مرشحون بعد. أضف أول مرشح!</p></div>';
+          return;
+        }
+        box.innerHTML = `
       <table class="candidate-table">
         <thead><tr>
           <th>المرشح</th><th>الشركة</th><th>السكور</th>
@@ -1367,17 +1427,17 @@
           ${list.map(c => candidateRow(c)).join('')}
         </tbody>
       </table>`;
-    }
+      }
 
-    function candidateRow(c) {
-      const initials = (c.name || '?').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
-      const score = c.overall_score || 0;
-      const scoreColor = score >= 85 ? 'var(--success)' : score >= 60 ? 'var(--warning)' : 'var(--danger)';
-      const domainClass = c.domain_color === 'green' ? 'domain-green' : c.domain_color === 'yellow' ? 'domain-yellow' : 'domain-red';
-      const riskVal = Math.max(c.retention_risk || 0, c.salary_risk || 0, c.cultural_risk || 0);
-      const riskClass = riskVal >= 70 ? 'risk-high' : riskVal >= 40 ? 'risk-medium' : 'risk-low';
-      const riskLabel = riskVal >= 70 ? 'عالية' : riskVal >= 40 ? 'متوسطة' : 'منخفضة';
-      return `
+      function candidateRow(c) {
+        const initials = (c.name || '?').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+        const score = c.overall_score || 0;
+        const scoreColor = score >= 85 ? 'var(--success)' : score >= 60 ? 'var(--warning)' : 'var(--danger)';
+        const domainClass = c.domain_color === 'green' ? 'domain-green' : c.domain_color === 'yellow' ? 'domain-yellow' : 'domain-red';
+        const riskVal = Math.max(c.retention_risk || 0, c.salary_risk || 0, c.cultural_risk || 0);
+        const riskClass = riskVal >= 70 ? 'risk-high' : riskVal >= 40 ? 'risk-medium' : 'risk-low';
+        const riskLabel = riskVal >= 70 ? 'عالية' : riskVal >= 40 ? 'متوسطة' : 'منخفضة';
+        return `
       <tr class="candidate-row" onclick="openCandidate('${c.id}')">
         <td><div class="candidate-info">
           <div class="avatar">${initials}</div>
@@ -1394,114 +1454,114 @@
         <td><span class="domain-dot ${domainClass}"></span></td>
         <td><span class="risk-pill ${riskClass}">${riskLabel} ${Math.round(riskVal)}%</span></td>
       </tr>`;
-    }
-
-    function updateStats(data) {
-      const total = data.length;
-      const avg = total ? Math.round(data.reduce((s, c) => s + (c.overall_score || 0), 0) / total) : 0;
-      const high = data.filter(c => (c.overall_score || 0) >= 85).length;
-      const risk = data.filter(c => Math.max(c.retention_risk || 0, c.salary_risk || 0, c.cultural_risk || 0) >= 70).length;
-      animateNum('stat-total', total);
-      animateNum('stat-avg', avg);
-      animateNum('stat-high', high);
-      animateNum('stat-risk', risk);
-    }
-
-    function animateNum(id, target) {
-      const el = document.getElementById(id);
-      let cur = 0;
-      const step = Math.ceil(target / 30);
-      const t = setInterval(() => {
-        cur = Math.min(cur + step, target);
-        el.textContent = cur;
-        if (cur >= target) clearInterval(t);
-      }, 30);
-    }
-
-    function checkHighRisk(data) {
-      const highRisk = data.filter(c => Math.max(c.retention_risk || 0, c.salary_risk || 0, c.cultural_risk || 0) >= 70);
-      if (highRisk.length > 0) {
-        const alert = document.getElementById('risk-alert');
-        document.getElementById('risk-alert-msg').textContent =
-          `${highRisk.length} مرشح يتجاوز حد المخاطرة 70% — مراجعة فورية مطلوبة قبل جدولة المقابلة.`;
-        alert.classList.add('visible');
       }
-    }
 
-    // ── Chart ──
-    function buildScoreChart(data) {
-      const ctx = document.getElementById('scoreChart').getContext('2d');
-      const bins = [0, 0, 0, 0, 0]; // 0-20, 20-40, 40-60, 60-80, 80-100
-      data.forEach(c => {
-        const s = c.overall_score || 0;
-        bins[Math.min(Math.floor(s / 20), 4)]++;
-      });
-      if (scoreChart) scoreChart.destroy();
-      scoreChart = new Chart(ctx, {
-        type: 'bar',
-        data: {
-          labels: ['0-20', '20-40', '40-60', '60-80', '80-100'],
-          datasets: [{
-            data: bins,
-            backgroundColor: ['rgba(248,113,113,0.7)', 'rgba(251,191,36,0.6)', 'rgba(251,191,36,0.6)', 'rgba(99,179,237,0.6)', 'rgba(52,211,153,0.7)'],
-            borderColor: ['#f87171', '#fbbf24', '#fbbf24', '#63b3ed', '#34d399'],
-            borderWidth: 1, borderRadius: 6,
-          }]
-        },
-        options: {
-          responsive: true, maintainAspectRatio: false,
-          plugins: { legend: { display: false } },
-          scales: {
-            x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94a3b8', font: { size: 10 } } },
-            y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94a3b8', font: { size: 10 }, stepSize: 1 } }
-          }
+      function updateStats(data) {
+        const total = data.length;
+        const avg = total ? Math.round(data.reduce((s, c) => s + (c.overall_score || 0), 0) / total) : 0;
+        const high = data.filter(c => (c.overall_score || 0) >= 85).length;
+        const risk = data.filter(c => Math.max(c.retention_risk || 0, c.salary_risk || 0, c.cultural_risk || 0) >= 70).length;
+        animateNum('stat-total', total);
+        animateNum('stat-avg', avg);
+        animateNum('stat-high', high);
+        animateNum('stat-risk', risk);
+      }
+
+      function animateNum(id, target) {
+        const el = document.getElementById(id);
+        let cur = 0;
+        const step = Math.ceil(target / 30);
+        const t = setInterval(() => {
+          cur = Math.min(cur + step, target);
+          el.textContent = cur;
+          if (cur >= target) clearInterval(t);
+        }, 30);
+      }
+
+      function checkHighRisk(data) {
+        const highRisk = data.filter(c => Math.max(c.retention_risk || 0, c.salary_risk || 0, c.cultural_risk || 0) >= 70);
+        if (highRisk.length > 0) {
+          const alert = document.getElementById('risk-alert');
+          document.getElementById('risk-alert-msg').textContent =
+            `${highRisk.length} مرشح يتجاوز حد المخاطرة 70% — مراجعة فورية مطلوبة قبل جدولة المقابلة.`;
+          alert.classList.add('visible');
         }
-      });
-    }
+      }
 
-    // ── Skill Gap ──
-    function buildGapList(data) {
-      const skillMap = {};
-      data.forEach(c => {
-        (c.skills || []).forEach(s => {
-          skillMap[s] = (skillMap[s] || 0) + 1;
+      // ── Chart ──
+      function buildScoreChart(data) {
+        const ctx = document.getElementById('scoreChart').getContext('2d');
+        const bins = [0, 0, 0, 0, 0]; // 0-20, 20-40, 40-60, 60-80, 80-100
+        data.forEach(c => {
+          const s = c.overall_score || 0;
+          bins[Math.min(Math.floor(s / 20), 4)]++;
         });
-      });
-      // Simulated gap: skills with low penetration = gaps
-      const all = Object.entries(skillMap).sort((a, b) => a[1] - b[1]).slice(0, 6);
-      const max = data.length || 1;
-      const list = document.getElementById('gap-list');
-      if (!all.length) { list.innerHTML = '<li class="gap-item" style="color:var(--text-muted);font-size:12px;">لا توجد بيانات مهارات بعد</li>'; return; }
-      list.innerHTML = all.map(([skill, count]) => {
-        const pct = Math.round((1 - count / max) * 100);
-        return `<li class="gap-item">
+        if (scoreChart) scoreChart.destroy();
+        scoreChart = new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels: ['0-20', '20-40', '40-60', '60-80', '80-100'],
+            datasets: [{
+              data: bins,
+              backgroundColor: ['rgba(248,113,113,0.7)', 'rgba(251,191,36,0.6)', 'rgba(251,191,36,0.6)', 'rgba(99,179,237,0.6)', 'rgba(52,211,153,0.7)'],
+              borderColor: ['#f87171', '#fbbf24', '#fbbf24', '#63b3ed', '#34d399'],
+              borderWidth: 1, borderRadius: 6,
+            }]
+          },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+              x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94a3b8', font: { size: 10 } } },
+              y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94a3b8', font: { size: 10 }, stepSize: 1 } }
+            }
+          }
+        });
+      }
+
+      // ── Skill Gap ──
+      function buildGapList(data) {
+        const skillMap = {};
+        data.forEach(c => {
+          (c.skills || []).forEach(s => {
+            skillMap[s] = (skillMap[s] || 0) + 1;
+          });
+        });
+        // Simulated gap: skills with low penetration = gaps
+        const all = Object.entries(skillMap).sort((a, b) => a[1] - b[1]).slice(0, 6);
+        const max = data.length || 1;
+        const list = document.getElementById('gap-list');
+        if (!all.length) { list.innerHTML = '<li class="gap-item" style="color:var(--text-muted);font-size:12px;">لا توجد بيانات مهارات بعد</li>'; return; }
+        list.innerHTML = all.map(([skill, count]) => {
+          const pct = Math.round((1 - count / max) * 100);
+          return `<li class="gap-item">
         <span style="font-size:12px;color:var(--text-secondary);min-width:70px;">${skill}</span>
         <div class="gap-bar-wrap"><div class="gap-bar"><div class="gap-fill" style="width:${pct}%"></div></div></div>
         <span class="gap-pct">${pct}%</span>
       </li>`;
-      }).join('');
-    }
+        }).join('');
+      }
 
-    // ── Reminders ──
-    async function loadReminders() {
-      const today = new Date().toISOString();
-      const { data } = await db
-        .from('reminders')
-        .select('*, candidates(name, current_title, overall_score)')
-        .eq('status', 'pending')
-        .lte('follow_up_date', today);
+      // ── Reminders ──
+      async function loadReminders() {
+        const today = new Date().toISOString();
+        const { data } = await db
+          .from('reminders')
+          .select('*, candidates(name, current_title, overall_score)')
+          .eq('status', 'pending')
+          .lte('follow_up_date', today);
 
-      const count = (data || []).length;
-      document.getElementById('reminder-badge').textContent = count;
-      document.getElementById('reminders-count').textContent = count;
+        const count = (data || []).length;
+        document.getElementById('reminder-badge').textContent = count;
+        document.getElementById('reminders-count').textContent = count;
 
-      const list = document.getElementById('reminder-list');
-      if (!count) return;
-      list.innerHTML = (data || []).map(r => {
-        const c = r.candidates || {};
-        const initials = (c.name || '?').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
-        const date = new Date(r.follow_up_date).toLocaleDateString('ar-SA');
-        return `<div class="reminder-item">
+        const list = document.getElementById('reminder-list');
+        if (!count) return;
+        list.innerHTML = (data || []).map(r => {
+          const c = r.candidates || {};
+          const initials = (c.name || '?').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+          const date = new Date(r.follow_up_date).toLocaleDateString('ar-SA');
+          return `<div class="reminder-item">
         <div class="reminder-avatar">${initials}</div>
         <div class="reminder-info">
           <div class="reminder-name">${c.name || '—'}</div>
@@ -1509,115 +1569,168 @@
         </div>
         <div class="reminder-score">${Math.round(c.overall_score || 0)}</div>
       </div>`;
-      }).join('');
-    }
-
-    // ── Modal ──
-    function openCandidate(id) {
-      const c = allCandidates.find(x => x.id === id);
-      if (!c) return;
-      selectedCandidate = c;
-      document.getElementById('modal-name').textContent = c.name || 'مرشح';
-      document.getElementById('md-name').textContent = c.name || '—';
-      document.getElementById('md-email').textContent = c.email || '—';
-      document.getElementById('md-title').textContent = c.current_title || '—';
-      document.getElementById('md-company').textContent = c.current_company || '—';
-      document.getElementById('md-retention').innerHTML = riskBadge(c.retention_risk);
-      document.getElementById('md-salary').innerHTML = riskBadge(c.salary_risk);
-      document.getElementById('md-cultural').innerHTML = riskBadge(c.cultural_risk);
-      document.getElementById('md-domain').innerHTML = domainBadge(c.domain_color);
-      document.getElementById('md-skills').innerHTML = (c.skills || []).map(s =>
-        `<span class="skill-tag">${s}</span>`).join('') || '<span style="color:var(--text-muted);font-size:12px;">لا يوجد</span>';
-      document.getElementById('md-gaps').innerHTML = '<span style="color:var(--text-muted);font-size:12px;">مستخرج عبر Gemini</span>';
-
-      // Check if session exists or needs to be generated
-      document.getElementById('md-screen-link').textContent = `انقر لتوليد الفحص الديناميكي (Worker C)`;
-      document.getElementById('md-screen-link').onclick = () => triggerIntelligentScreener(c.id);
-
-      // Ring
-      const score = c.overall_score || 0;
-      const offset = 314 - (314 * score / 100);
-      setTimeout(() => {
-        document.getElementById('modal-ring').style.strokeDashoffset = offset;
-        document.getElementById('modal-score-num').textContent = Math.round(score);
-      }, 100);
-
-      document.getElementById('modal-overlay').classList.add('open');
-    }
-
-    function closeModal() {
-      document.getElementById('modal-overlay').classList.remove('open');
-      document.getElementById('modal-ring').style.strokeDashoffset = 314;
-    }
-
-    function riskBadge(val) {
-      const v = val || 0;
-      const cls = v >= 70 ? 'risk-high' : v >= 40 ? 'risk-medium' : 'risk-low';
-      const label = v >= 70 ? 'عالية' : v >= 40 ? 'متوسطة' : 'منخفضة';
-      return `<span class="risk-pill ${cls}">${label} ${Math.round(v)}%</span>`;
-    }
-
-    function domainBadge(color) {
-      const map = { green: '✅ أخضر', yellow: '🟡 أصفر', red: '🔴 أحمر' };
-      return map[color] || '—';
-    }
-
-    function copyLink(el) {
-      navigator.clipboard.writeText(el.textContent).then(() => {
-        const orig = el.textContent;
-        el.textContent = '✅ تم النسخ!';
-        setTimeout(() => el.textContent = orig, 2000);
-      });
-    }
-
-    async function triggerIntelligentScreener(candidate_id) {
-      const el = document.getElementById('md-screen-link');
-      el.textContent = '⚙️ جاري تحليل المهارات وتوليد أسئلة الفخ عبر Worker C...';
-      try {
-        // Mocking a specific job_id for testing
-        const res = await fetch('/api/generate_link', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ candidate_id: candidate_id, job_id: 'job_123' })
-        });
-        const data = await res.json();
-        if (res.ok) {
-          el.textContent = `${APP_URL}${data.screening_url}`;
-          el.onclick = () => copyLink(el);
-        } else {
-          el.textContent = '❌ فشل التوليد (انظر الكونسول)';
-          console.error(data);
-        }
-      } catch (e) {
-        el.textContent = '❌ خطأ في الاتصال بالخادم';
+        }).join('');
       }
-    }
 
-    function openNewCandidate() {
-      alert('واجهة رفع السيرة الذاتية وفحصها أمنياً (VirusTotal) غير متوفرة بعد في هذه الواجهة، ولكن الـ API `/api/upload_cv` جاهز!');
-    }
+      // ── Modal ──
+      function openCandidate(id) {
+        const c = allCandidates.find(x => x.id === id);
+        if (!c) return;
+        selectedCandidate = c;
+        document.getElementById('modal-name').textContent = c.name || 'مرشح';
+        document.getElementById('md-name').textContent = c.name || '—';
+        document.getElementById('md-email').textContent = c.email || '—';
+        document.getElementById('md-title').textContent = c.current_title || '—';
+        document.getElementById('md-company').textContent = c.current_company || '—';
+        document.getElementById('md-retention').innerHTML = riskBadge(c.retention_risk);
+        document.getElementById('md-salary').innerHTML = riskBadge(c.salary_risk);
+        document.getElementById('md-cultural').innerHTML = riskBadge(c.cultural_risk);
+        document.getElementById('md-domain').innerHTML = domainBadge(c.domain_color);
+        document.getElementById('md-skills').innerHTML = (c.skills || []).map(s =>
+          `<span class="skill-tag">${s}</span>`).join('') || '<span style="color:var(--text-muted);font-size:12px;">لا يوجد</span>';
+        document.getElementById('md-gaps').innerHTML = '<span style="color:var(--text-muted);font-size:12px;">مستخرج عبر Gemini</span>';
 
-    function generatePDF() {
-      alert('🔄 جاري إرسال طلب إلى `/api/score_candidate` لتوليد دليل قناص المقابلة (PDF)...');
-    }
+        // Check if session exists or needs to be generated
+        document.getElementById('md-screen-link').textContent = `انقر لتوليد الفحص الديناميكي (Worker C)`;
+        document.getElementById('md-screen-link').onclick = () => triggerIntelligentScreener(c.id);
 
-    function dismissCandidate() {
-      if (confirm('هل تريد أرشفة هذا المرشح؟')) closeModal();
-    }
+        // Ring
+        const score = c.overall_score || 0;
+        const offset = 314 - (314 * score / 100);
+        setTimeout(() => {
+          document.getElementById('modal-ring').style.strokeDashoffset = offset;
+          document.getElementById('modal-score-num').textContent = Math.round(score);
+        }, 100);
 
-    // ── Staggered reveal ──
-    function revealCards() {
-      const cards = document.querySelectorAll('.stat-card, .card');
-      cards.forEach((c, i) => {
-        setTimeout(() => c.classList.add('revealed'), 100 + i * 80);
-      });
-    }
+        document.getElementById('modal-overlay').classList.add('open');
+      }
 
-    function switchView(view) {
-      document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
-      document.getElementById('nav-' + view)?.classList.add('active');
-    }
-  </script>
+      function closeModal() {
+        document.getElementById('modal-overlay').classList.remove('open');
+        document.getElementById('modal-ring').style.strokeDashoffset = 314;
+      }
+
+      function riskBadge(val) {
+        const v = val || 0;
+        const cls = v >= 70 ? 'risk-high' : v >= 40 ? 'risk-medium' : 'risk-low';
+        const label = v >= 70 ? 'عالية' : v >= 40 ? 'متوسطة' : 'منخفضة';
+        return `<span class="risk-pill ${cls}">${label} ${Math.round(v)}%</span>`;
+      }
+
+      function domainBadge(color) {
+        const map = { green: '✅ أخضر', yellow: '🟡 أصفر', red: '🔴 أحمر' };
+        return map[color] || '—';
+      }
+
+      function copyLink(el) {
+        navigator.clipboard.writeText(el.textContent).then(() => {
+          const orig = el.textContent;
+          el.textContent = '✅ تم النسخ!';
+          setTimeout(() => el.textContent = orig, 2000);
+        });
+      }
+
+      async function triggerIntelligentScreener(candidate_id) {
+        const el = document.getElementById('md-screen-link');
+        el.textContent = '⚙️ جاري تحليل المهارات وتوليد أسئلة الفخ عبر Worker C...';
+        try {
+          // Mocking a specific job_id for testing
+          const res = await fetch('/api/generate_link', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ candidate_id: candidate_id, job_id: 'job_123' })
+          });
+          const data = await res.json();
+          if (res.ok) {
+            el.textContent = `${APP_URL}${data.screening_url}`;
+            el.onclick = () => copyLink(el);
+          } else {
+            el.textContent = '❌ فشل التوليد (انظر الكونسول)';
+            console.error(data);
+          }
+        } catch (e) {
+          el.textContent = '❌ خطأ في الاتصال بالخادم';
+        }
+      }
+
+      // ── Add New Candidate logic ──
+      function openNewCandidate() {
+        document.getElementById('add-target-job').value = '';
+        document.getElementById('add-profile-text').value = '';
+        document.getElementById('btn-submit-text').textContent = '🚀 تقييم وإضافة (Gemini)';
+        document.getElementById('btn-submit-add').disabled = false;
+        document.getElementById('modal-add-overlay').classList.add('open');
+      }
+
+      function closeAddModal() {
+        document.getElementById('modal-add-overlay').classList.remove('open');
+      }
+
+      async function submitNewCandidate() {
+        const targetJob = document.getElementById('add-target-job').value.trim();
+        const profileText = document.getElementById('add-profile-text').value.trim();
+
+        if (!targetJob || !profileText) {
+          alert("الرجاء إدخال الوظيفة المستهدفة ونسخ بروفايل لينكد إن");
+          return;
+        }
+
+        const btn = document.getElementById('btn-submit-add');
+        const btnText = document.getElementById('btn-submit-text');
+
+        btn.disabled = true;
+        btnText.textContent = '⏳ جاري تحليل البروفايل عبر Gemini...';
+
+        try {
+          const res = await fetch('/api/evaluate_linkedin', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              profile_text: profileText,
+              target_job: targetJob
+            })
+          });
+
+          const data = await res.json();
+
+          if (res.ok) {
+            closeAddModal();
+            await refreshCandidates();
+            // Automatically open the new candidate
+            openCandidate(data.candidate_id);
+          } else {
+            alert("حدث خطأ أثناء التقييم: " + JSON.stringify(data));
+            btn.disabled = false;
+            btnText.textContent = '🚀 تقييم وإضافة (Gemini)';
+          }
+        } catch (e) {
+          alert("تعذر الاتصال بالخادم");
+          btn.disabled = false;
+          btnText.textContent = '🚀 تقييم وإضافة (Gemini)';
+        }
+      }
+
+      function generatePDF() {
+        alert('🔄 جاري إرسال طلب إلى `/api/score_candidate` لتوليد دليل قناص المقابلة (PDF)...');
+      }
+
+      function dismissCandidate() {
+        if (confirm('هل تريد أرشفة هذا المرشح؟')) closeModal();
+      }
+
+      // ── Staggered reveal ──
+      function revealCards() {
+        const cards = document.querySelectorAll('.stat-card, .card');
+        cards.forEach((c, i) => {
+          setTimeout(() => c.classList.add('revealed'), 100 + i * 80);
+        });
+      }
+
+      function switchView(view) {
+        document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+        document.getElementById('nav-' + view)?.classList.add('active');
+      }
+    </script>
 </body>
 
 </html>

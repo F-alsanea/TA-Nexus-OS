@@ -59,6 +59,10 @@ class ScoreRequest(BaseModel):
     session_id: str
     answers: list[dict]
 
+class EvaluateLinkedInRequest(BaseModel):
+    profile_text: str
+    target_job: str
+
 # ──────────────────────────────────────────────
 # Health Check
 # ──────────────────────────────────────────────
@@ -210,6 +214,23 @@ async def get_dashboard_data():
             return {"candidates": result.data or [], "count": len(result.data or [])}
         except Exception as fallback_e:
             raise HTTPException(500, str(fallback_e))
+
+# ──────────────────────────────────────────────
+# Evaluate LinkedIn Paste
+# ──────────────────────────────────────────────
+@app.post("/api/evaluate_linkedin")
+async def process_linkedin_profile(request: EvaluateLinkedInRequest):
+    """
+    Takes a pasted LinkedIn profile text, uses Gemini to extract/evaluate it 
+    against a target job requirement, and saves it into the Database.
+    """
+    try:
+        from api.evaluate_linkedin import evaluate_linkedin_profile
+        # We await the async function
+        result = await evaluate_linkedin_profile(request.profile_text, request.target_job)
+        return result
+    except Exception as e:
+        raise HTTPException(500, f"LinkedIn Evaluation failed: {str(e)}")
 
 # Vercel handler
 handler = app
