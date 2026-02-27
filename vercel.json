@@ -1,5 +1,14 @@
 {
   "version": 2,
+  "builds": [
+    {
+      "src": "api/index.py",
+      "use": "@vercel/python",
+      "config": {
+        "maxLambdaSize": "15mb"
+      }
+    }
+  ],
   "routes": [
     {
       "src": "/api/(.*)",
@@ -17,11 +26,5 @@
       "src": "/",
       "dest": "/ui/analytics_dashboard/index.html"
     }
-  ],
-  "functions": {
-    "api/index.py": {
-      "maxDuration": 30,
-      "memory": 512
-    }
-  }
+  ]
 }
