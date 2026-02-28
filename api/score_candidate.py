@@ -8,14 +8,16 @@ import os
 from fastapi.responses import Response
 from dotenv import load_dotenv
 
+import asyncio
 from core.evaluator import evaluate_answers
 from tools.pdf_generator import generate_interview_guide
-from database.supabase_handler import SupabaseHandler
+from database.supabase_handler import (
+    get_screening_session, get_candidate, save_score, schedule_reminder
+)
 
 load_dotenv()
 
-
-async def evaluate_screening(session_id: str, answers: list[dict]) -> dict:
+def evaluate_screening(session_id: str, answers: list[dict]) -> dict:
     """
     Full scoring pipeline:
     1. Fetch session from Supabase (questions + candidate data)
@@ -24,10 +26,9 @@ async def evaluate_screening(session_id: str, answers: list[dict]) -> dict:
     4. Store results in Supabase
     5. Auto-schedule reminder if score >= 85
     """
-    db = SupabaseHandler()
 
     # Fetch the screening session
-    session = await db.get_screening_session(session_id)
+    session = get_screening_session(session_id)
     if not session:
         raise Exception(f"Session {session_id} not found")
 
@@ -46,10 +47,10 @@ async def evaluate_screening(session_id: str, answers: list[dict]) -> dict:
         })
 
     # Run Evaluator-Optimizer
-    eval_result = await evaluate_answers(session_id, qa_pairs, job_description)
+    eval_result = asyncio.run(evaluate_answers(session_id, qa_pairs, job_description))
 
     # Fetch candidate info for PDF
-    candidate = await db.get_candidate(candidate_id) or {}
+    candidate = get_candidate(candidate_id) or {}
 
     # Build report for PDF
     pdf_report = {
@@ -88,13 +89,13 @@ async def evaluate_screening(session_id: str, answers: list[dict]) -> dict:
         "interview_traps": eval_result.interview_traps,
         "validated": eval_result.validated
     }
-    await db.save_score(score_record)
+    save_score(session_id, candidate_id, score_record)
 
     # Auto-reminder for high scorers (>= 85)
     if eval_result.total_score >= 85:
         from datetime import datetime, timedelta, timezone
         follow_up = (datetime.now(timezone.utc) + timedelta(days=2)).isoformat()
-        await db.schedule_reminder(candidate_id, eval_result.total_score, follow_up)
+        schedule_reminder(candidate_id, eval_result.total_score, follow_up)
 
     return {
         "session_id": session_id,

@@ -8,7 +8,6 @@ Project: https://jvsdazoxmcehnazxthwm.supabase.co
 import os
 import uuid
 import logging
-import asyncio
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -310,36 +309,4 @@ def health_check() -> dict:
     except Exception as e:
         logger.error(f"[DB] Health check failed: {e}")
         return {"status": "error", "detail": str(e)}
-
-# ─────────────────────────────────────────────
-#  ASYNC WRAPPER FOR FASTAPI / VERCEL
-# ─────────────────────────────────────────────
-class SupabaseHandler:
-    """
-    Async wrapper around the synchronous Supabase functions.
-    Required because FastAPI endpoints await these calls.
-    """
-    async def save_candidate(self, candidate_id: str, candidate_data: dict) -> dict:
-        return await asyncio.to_thread(save_candidate, candidate_id, candidate_data)
-
-    async def get_candidate(self, candidate_id: str) -> Optional[dict]:
-        return await asyncio.to_thread(get_candidate, candidate_id)
-
-    async def get_all_candidates_with_scores(self) -> list:
-        return await asyncio.to_thread(get_all_candidates_with_scores)
-
-    async def get_screening_session(self, session_id: str) -> Optional[dict]:
-        return await asyncio.to_thread(get_screening_session, session_id)
-
-    async def save_score(self, score_data: dict) -> dict:
-        # score_data needs to be unpacked or saved using the session/candidate info
-        return await asyncio.to_thread(
-            save_score, 
-            score_data.get("session_id"), 
-            score_data.get("candidate_id"), 
-            score_data
-        )
-
-    async def schedule_reminder(self, candidate_id: str, trigger_score: float, recruiter_note: str) -> Optional[dict]:
-        return await asyncio.to_thread(schedule_reminder, candidate_id, trigger_score, recruiter_note)
 

@@ -34,7 +34,7 @@ class LinkedInEvaluationResponse(BaseModel):
     strengths: List[str] = Field(description="2-3 key strengths matching the job")
     gaps: List[str] = Field(description="2-3 missing skills or experiences required for the job")
 
-async def evaluate_linkedin_profile(profile_text: str, target_job: str) -> dict:
+def evaluate_linkedin_profile(profile_text: str, target_job: str) -> dict:
     """
     Takes a pasted LinkedIn profile text and a target job description/title.
     Uses Gemini to extract structured data and evaluate the fit.

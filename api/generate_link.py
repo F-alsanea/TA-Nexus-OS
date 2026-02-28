@@ -81,7 +81,7 @@ Only output valid JSON array. No extra text.
     return questions
 
 
-async def create_screening_session(
+def create_screening_session_route(
     candidate_id: str,
     job_id: str,
     candidate_data: dict = None,
@@ -92,17 +92,16 @@ async def create_screening_session(
     Creates a unique screening session with tailored questions.
     Stores in Supabase and returns the screening URL.
     """
-    from database.supabase_handler import SupabaseHandler
+    import asyncio
+    from database.supabase_handler import create_screening_session
     from datetime import datetime, timezone
 
-    db = SupabaseHandler()
-
     # Generate tailored questions
-    questions = await generate_tailored_questions(
+    questions = asyncio.run(generate_tailored_questions(
         candidate_data or {"candidate_id": candidate_id},
         job_description,
         skill_gaps
-    )
+    ))
 
     session_id = str(uuid.uuid4())
     screening_url = f"{APP_URL}/screen/{session_id}"
@@ -119,7 +118,7 @@ async def create_screening_session(
     )
 
     # Save to Supabase
-    await db.save_screening_session(session.model_dump())
+    create_screening_session(candidate_id, job_id, questions)
 
     return {
         "session_id": session_id,

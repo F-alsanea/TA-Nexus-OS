@@ -10,7 +10,10 @@ from dotenv import load_dotenv
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from core.orchestrator import Orchestrator
-from database.supabase_handler import SupabaseHandler
+from database.supabase_handler import (
+    save_candidate, get_candidate, get_screening_session,
+    get_all_candidates_with_scores
+)
 # We'll need a mock or simple implementation for process_cv since file_processor wasn't shown
 # We'll implement a secure one using security_service directly
 
@@ -34,7 +37,6 @@ app.add_middleware(
 )
 
 orchestrator = Orchestrator()
-db = SupabaseHandler()
 
 # ──────────────────────────────────────────────
 # Request Models
@@ -113,7 +115,7 @@ async def upload_cv(file: UploadFile = File(...)):
         }
         
         candidate_id = str(uuid.uuid4())
-        await db.save_candidate(candidate_id, cv_data)
+        save_candidate(candidate_id, cv_data)
         return {"candidate_id": candidate_id, "cv_data": cv_data}
     except Exception as e:
         raise HTTPException(500, f"CV processing failed: {str(e)}")
@@ -143,7 +145,7 @@ async def hunt_candidate(request: HuntRequest):
 async def analyze_candidate(request: AnalyzeRequest):
     """Workers A + C + D: Strategic alignment, risk scoring, market analysis"""
     try:
-        candidate = await db.get_candidate(request.candidate_id)
+        candidate = get_candidate(request.candidate_id)
         if not candidate:
             raise HTTPException(404, "Candidate not found")
 
@@ -160,11 +162,11 @@ async def analyze_candidate(request: AnalyzeRequest):
 # Generate Screening Link
 # ──────────────────────────────────────────────
 @app.post("/api/generate_link")
-async def generate_screening_link(request: GenerateLinkRequest):
+def generate_screening_link(request: GenerateLinkRequest):
     """Worker C: Generate UUID screening link with tailored questions"""
     try:
-        from api.generate_link import create_screening_session
-        result = await create_screening_session(request.candidate_id, request.job_id)
+        from api.generate_link import create_screening_session_route
+        result = create_screening_session_route(request.candidate_id, request.job_id)
         return result
     except Exception as e:
         raise HTTPException(500, f"Link generation failed: {str(e)}")
@@ -173,11 +175,11 @@ async def generate_screening_link(request: GenerateLinkRequest):
 # Score Candidate
 # ──────────────────────────────────────────────
 @app.post("/api/score_candidate")
-async def score_candidate_answers(request: ScoreRequest):
+def score_candidate_answers(request: ScoreRequest):
     """Evaluator-Optimizer: Score answers → Generate Interview Guide PDF"""
     try:
         from api.score_candidate import evaluate_screening
-        result = await evaluate_screening(request.session_id, request.answers)
+        result = evaluate_screening(request.session_id, request.answers)
         return result
     except Exception as e:
         raise HTTPException(500, f"Scoring failed: {str(e)}")
@@ -186,10 +188,10 @@ async def score_candidate_answers(request: ScoreRequest):
 # Get Session (for Candidate Portal)
 # ──────────────────────────────────────────────
 @app.get("/api/session/{session_id}")
-async def get_session(session_id: str):
+def get_session(session_id: str):
     """Returns screening session questions for the candidate portal"""
     try:
-        result = await db.get_screening_session(session_id)
+        result = get_screening_session(session_id)
         if not result:
             raise HTTPException(404, "Session not found or expired")
         return result
@@ -200,10 +202,10 @@ async def get_session(session_id: str):
 # Dashboard Data
 # ──────────────────────────────────────────────
 @app.get("/api/dashboard")
-async def get_dashboard_data():
+def get_dashboard_data():
     """Returns all candidates sorted by score for the dashboard"""
     try:
-        candidates = await db.get_all_candidates_with_scores()
+        candidates = get_all_candidates_with_scores()
         return {"candidates": candidates, "count": len(candidates)}
     except Exception as e:
         # Fallback if the Supabase RPC isn't available yet or fails
@@ -219,15 +221,15 @@ async def get_dashboard_data():
 # Evaluate LinkedIn Paste
 # ──────────────────────────────────────────────
 @app.post("/api/evaluate_linkedin")
-async def process_linkedin_profile(request: EvaluateLinkedInRequest):
+def process_linkedin_profile(request: EvaluateLinkedInRequest):
     """
     Takes a pasted LinkedIn profile text, uses Gemini to extract/evaluate it 
     against a target job requirement, and saves it into the Database.
     """
     try:
         from api.evaluate_linkedin import evaluate_linkedin_profile
-        # We await the async function
-        result = await evaluate_linkedin_profile(request.profile_text, request.target_job)
+        # Evaluate synchronously
+        result = evaluate_linkedin_profile(request.profile_text, request.target_job)
         return result
     except Exception as e:
         raise HTTPException(500, f"LinkedIn Evaluation failed: {str(e)}")
