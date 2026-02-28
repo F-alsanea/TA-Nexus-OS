@@ -21,13 +21,7 @@ try:
 except ImportError:
     pass
 
-from core.orchestrator import Orchestrator
-from database.supabase_handler import (
-    save_candidate, get_candidate, get_screening_session,
-    get_all_candidates_with_scores
-)
-# We'll need a mock or simple implementation for process_cv since file_processor wasn't shown
-# We'll implement a secure one using security_service directly
+
 
 load_dotenv()
 
@@ -48,7 +42,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-orchestrator = Orchestrator()
 
 # ──────────────────────────────────────────────
 # Request Models
@@ -127,6 +120,7 @@ def upload_cv(file: UploadFile = File(...)):
             "security_scan": scan_result.model_dump()
         }
         
+        from database.supabase_handler import save_candidate
         candidate_id = str(uuid.uuid4())
         save_candidate(candidate_id, cv_data)
         return {"candidate_id": candidate_id, "cv_data": cv_data}
@@ -141,6 +135,8 @@ def hunt_candidate(request: HuntRequest):
     """Worker B: LinkedIn sniper + email hunting + verification"""
     try:
         import asyncio
+        from core.orchestrator import Orchestrator
+        orchestrator = Orchestrator()
         result = asyncio.run(orchestrator.run_hunt(
             job_title=request.job_title,
             company_domain=request.company_domain,
@@ -160,10 +156,13 @@ def analyze_candidate(request: AnalyzeRequest):
     """Workers A + C + D: Strategic alignment, risk scoring, market analysis"""
     try:
         import asyncio
+        from database.supabase_handler import get_candidate
+        from core.orchestrator import Orchestrator
         candidate = get_candidate(request.candidate_id)
         if not candidate:
             raise HTTPException(404, "Candidate not found")
 
+        orchestrator = Orchestrator()
         report = asyncio.run(orchestrator.run_analysis(
             candidate_data=candidate,
             job_description=request.job_description,
@@ -206,6 +205,7 @@ def score_candidate_answers(request: ScoreRequest):
 def get_session(session_id: str):
     """Returns screening session questions for the candidate portal"""
     try:
+        from database.supabase_handler import get_screening_session
         result = get_screening_session(session_id)
         if not result:
             raise HTTPException(404, "Session not found or expired")
@@ -220,6 +220,7 @@ def get_session(session_id: str):
 def get_dashboard_data():
     """Returns all candidates sorted by score for the dashboard"""
     try:
+        from database.supabase_handler import get_all_candidates_with_scores
         candidates = get_all_candidates_with_scores()
         return {"candidates": candidates, "count": len(candidates)}
     except Exception as e:
