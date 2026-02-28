@@ -6,8 +6,20 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
-# Add parent directory to path so we can import from core/, services/, etc.
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Robust path resolution for Vercel
+current_dir = os.path.dirname(os.path.abspath(__file__))
+root_dir = os.path.dirname(current_dir)
+if root_dir not in sys.path:
+    sys.path.insert(0, root_dir)
+
+# Force Vercel bundler to see these directories
+try:
+    import core.orchestrator
+    import database.supabase_handler
+    import services.security_service
+    import tools.pdf_generator
+except ImportError:
+    pass
 
 from core.orchestrator import Orchestrator
 from database.supabase_handler import (
