@@ -81,7 +81,7 @@ class EvaluateLinkedInRequest(BaseModel):
 # Health Check
 # ──────────────────────────────────────────────
 @app.get("/api/health")
-async def health_check():
+def health_check():
     return {
         "status": "operational",
         "system": "TA Nexus Intelligence OS",
@@ -99,21 +99,22 @@ async def health_check():
 # CV Upload & Processing (Pillar 1: Security First)
 # ──────────────────────────────────────────────
 @app.post("/api/upload_cv")
-async def upload_cv(file: UploadFile = File(...)):
+def upload_cv(file: UploadFile = File(...)):
     """
     Step 1: VirusTotal scan -> Save to Supabase (Mocked text extraction)
     Rule 1: Security First — No file passes unscanned
     """
+    import asyncio
     from services.security_service import scan_file
     
     if not file.filename.endswith(('.pdf', '.docx', '.doc')):
         raise HTTPException(400, "Only PDF and Word documents are accepted")
 
-    file_bytes = await file.read()
+    file_bytes = file.file.read()
 
     try:
         # Mandatory VirusTotal Scan
-        scan_result = await scan_file(file_bytes)
+        scan_result = asyncio.run(scan_file(file_bytes))
         if not scan_result.safe:
             raise HTTPException(403, f"SECURITY ALERT: File blocked. {scan_result.malicious_count} malicious engines detected.")
 
@@ -136,16 +137,17 @@ async def upload_cv(file: UploadFile = File(...)):
 # Full Intelligence Hunt (Sniper Hunter)
 # ──────────────────────────────────────────────
 @app.post("/api/hunt")
-async def hunt_candidate(request: HuntRequest):
+def hunt_candidate(request: HuntRequest):
     """Worker B: LinkedIn sniper + email hunting + verification"""
     try:
-        result = await orchestrator.run_hunt(
+        import asyncio
+        result = asyncio.run(orchestrator.run_hunt(
             job_title=request.job_title,
             company_domain=request.company_domain,
             first_name=request.candidate_first_name,
             last_name=request.candidate_last_name,
             location=request.location
-        )
+        ))
         return result
     except Exception as e:
         raise HTTPException(500, f"Hunt failed: {str(e)}")
@@ -154,18 +156,19 @@ async def hunt_candidate(request: HuntRequest):
 # Full Candidate Analysis (Strategic/Radar)
 # ──────────────────────────────────────────────
 @app.post("/api/analyze")
-async def analyze_candidate(request: AnalyzeRequest):
+def analyze_candidate(request: AnalyzeRequest):
     """Workers A + C + D: Strategic alignment, risk scoring, market analysis"""
     try:
+        import asyncio
         candidate = get_candidate(request.candidate_id)
         if not candidate:
             raise HTTPException(404, "Candidate not found")
 
-        report = await orchestrator.run_analysis(
+        report = asyncio.run(orchestrator.run_analysis(
             candidate_data=candidate,
             job_description=request.job_description,
             salary_ask=request.candidate_ask_salary
-        )
+        ))
         return report
     except Exception as e:
         raise HTTPException(500, f"Analysis failed: {str(e)}")
