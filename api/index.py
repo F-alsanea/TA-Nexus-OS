@@ -18,7 +18,7 @@ try:
     import database.supabase_handler
     import services.security_service
     import tools.pdf_generator
-except ImportError:
+except Exception:
     pass
 
 
