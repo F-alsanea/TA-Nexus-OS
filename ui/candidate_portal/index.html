@@ -122,6 +122,7 @@
             font-size: 28px;
             font-weight: 700;
             background: linear-gradient(135deg, var(--accent), var(--accent-2));
+            background-clip: text;
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             margin-bottom: 8px;
@@ -429,6 +430,7 @@
             font-size: 42px;
             font-weight: 700;
             background: linear-gradient(135deg, var(--accent), var(--accent-2));
+            background-clip: text;
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
         }
@@ -885,54 +887,53 @@
 
             const answersList = Object.entries(answers).map(([qid, text]) => ({ question_id: qid, answer_text: text }));
 
-            // Update session in Supabase
+            // Update session in Supabase so it is marked as completed
             await db.from('screening_sessions').update({
                 answers: answersList,
                 status: 'completed',
                 submitted_at: new Date().toISOString(),
             }).eq('id', sessionId);
 
-            // Simulate scoring (in real: handled by score_candidate.py via API)
-            await new Promise(r => setTimeout(r, 2800));
+            // Format answers for the /api/score_candidate endpoint
+            const apiAnswers = questions.map((q, idx) => ({
+                question_id: idx + 1,
+                answer: answers[q.id] || ""
+            }));
 
-            const score = simulateScore(answersList);
-            await db.from('scores').insert({
-                id: crypto.randomUUID(),
-                session_id: sessionId,
-                candidate_id: session.candidate_id || 'demo',
-                total_score: score.total,
-                accuracy_score: score.accuracy,
-                depth_score: score.depth,
-                cultural_score: score.cultural,
-                scored_at: new Date().toISOString(),
-            }).then(() => { }).catch(() => { });
+            try {
+                // Call the Evaluator-Optimizer API (Gemini)
+                const res = await fetch('/api/score_candidate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        session_id: sessionId,
+                        answers: apiAnswers
+                    })
+                });
 
-            // Auto-schedule reminder if score > 85
-            if (score.total >= 85) {
-                await db.from('reminders').insert({
-                    id: crypto.randomUUID(),
-                    candidate_id: session.candidate_id || 'demo',
-                    follow_up_date: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
-                    status: 'pending',
-                    trigger_score: score.total,
-                    recruiter_note: 'مرشح ذو أولوية - تم جدولة المتابعة آلياً',
-                    created_at: new Date().toISOString(),
-                }).then(() => { }).catch(() => { });
+                if (!res.ok) throw new Error('Failed to score candidate');
+                const data = await res.json();
+
+                const score = {
+                    total: data.score || 0,
+                    accuracy: Math.round(data.breakdown?.technical || 0),
+                    depth: Math.round(data.breakdown?.behavioral || 0),
+                    cultural: Math.round(data.breakdown?.cultural_fit || 0),
+                };
+
+                hide('screen-submitting');
+                showResult(score);
+            } catch (e) {
+                console.error("Scoring error:", e);
+                // Fallback in case backend fails
+                hide('screen-submitting');
+                document.getElementById('screen-error').innerHTML = `
+                    <div class="error-icon">⚠️</div>
+                    <div class="error-title">تعذر التقييم</div>
+                    <p class="error-msg">حدث خطأ أثناء محاولة التقييم الذكي. تم حفظ إجاباتك بنجاح وسنقوم بتقييمها لاحقاً.</p>
+                `;
+                show('screen-error');
             }
-
-            hide('screen-submitting');
-            showResult(score);
-        }
-
-        function simulateScore(ans) {
-            const avgLen = ans.reduce((s, a) => s + (a.answer_text || '').length, 0) / (ans.length || 1);
-            const base = Math.min(Math.round(40 + (avgLen / 8)), 94);
-            return {
-                total: base,
-                accuracy: Math.min(Math.round(base + Math.random() * 8 - 4), 100),
-                depth: Math.min(Math.round(base - 5 + Math.random() * 10), 100),
-                cultural: Math.min(Math.round(base + 2 + Math.random() * 6), 100),
-            };
         }
 
         function showResult(score) {
